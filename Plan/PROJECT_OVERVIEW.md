@@ -1,3 +1,6 @@
+> **HISTORICAL DOCUMENT** -- This was the original research planning document.
+> Current implementation status and architecture are documented in docs/.
+
 # Sec-C: Multi-Stage Code Security Framework
 ## Complete Project Overview
 

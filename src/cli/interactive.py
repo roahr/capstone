@@ -205,11 +205,21 @@ def print_status() -> None:
 
     # -- Stage 2: Graph tools --
     table.add_row("[bold]Stage 2: Graph[/bold]", "", "")
-    joern_path = shutil.which("joern")
+    # Check for Joern in PATH and common install locations
+    joern_path = shutil.which("joern") or shutil.which("joern-parse")
+    if not joern_path:
+        # Check known install dirs
+        for candidate in [
+            Path.home() / ".sec-c" / "joern" / "joern-cli" / "bin",
+            Path("C:/joern/joern-cli/bin"),
+        ]:
+            if (candidate / "joern-parse.bat").exists() or (candidate / "joern-parse").exists():
+                joern_path = str(candidate)
+                break
     if joern_path:
-        table.add_row("  Joern", "[green]Available[/green]", joern_path)
+        table.add_row("  Joern", "[green]Available[/green]", str(joern_path))
     else:
-        table.add_row("  Joern", "[dim]Not Installed[/dim]", "Optional (deferred to GNN phase)")
+        table.add_row("  Joern", "[dim]Not Installed[/dim]", "Optional: run scripts/setup_joern.sh")
 
     gnn_model = Path("data/models/mini_gat.pt")
     if gnn_model.exists():

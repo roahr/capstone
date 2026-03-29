@@ -1,5 +1,7 @@
 """
-Gemini API Client: Production-grade wrapper for Google Gemini 2.5 API.
+Gemini API Client: Production-grade wrapper for Google Gemini API.
+
+Uses the ``google-genai`` SDK (``from google import genai``).
 
 Features:
     - Multi-key rotation with automatic failover on rate limits
@@ -32,6 +34,21 @@ if TYPE_CHECKING:
     from src.sast.sarif.schema import Finding
 
 logger = logging.getLogger(__name__)
+
+
+def _clean_error(exc: Exception) -> str:
+    """Extract a concise error message, stripping protobuf/JSON noise."""
+    raw = str(exc)
+    brace = raw.find(". {")
+    if brace > 0:
+        return raw[:brace + 1].strip()
+    bracket = raw.find(" [")
+    if bracket > 0:
+        return raw[:bracket].strip()
+    if len(raw) > 150:
+        return raw[:150].rstrip() + "..."
+    return raw
+
 
 # ---------------------------------------------------------------------------
 # Common CWEs that are well-understood and can be handled by Flash
@@ -306,6 +323,7 @@ class GeminiClient(BaseLLMClient):
 
         # ----- SDK (lazy init) -----
         self._genai = None
+        self._genai_client = None
 
         # ----- Legacy rate-limiter aliases (kept for backward compatibility) -----
         # Expose rate limiters of the first key (or dummy ones if no keys).
@@ -360,7 +378,7 @@ class GeminiClient(BaseLLMClient):
                 )
             )
 
-        logger.info(
+        logger.debug(
             "Gemini client initialized with %d API key(s): %s",
             len(self._keys),
             ", ".join(ks.key_id for ks in self._keys),
@@ -371,22 +389,23 @@ class GeminiClient(BaseLLMClient):
     # ------------------------------------------------------------------
     def _init_sdk(self, api_key: str) -> Any:
         """
-        Initialize (or re-initialize) the Gemini SDK with the given key.
-        Returns the configured genai module.
+        Initialize the Gemini SDK client for *api_key*.
+
+        Uses the ``google-genai`` SDK (``from google import genai``).
+        Each key gets its own ``genai.Client`` instance to avoid global
+        state pollution.
         """
         try:
-            import warnings
-            warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
-            import google.generativeai as genai
+            from google import genai as _genai  # type: ignore[import-untyped]
         except ImportError:
             raise RuntimeError(
-                "google-generativeai package not installed. "
-                "Run: pip install google-generativeai"
+                "google-genai package not installed. "
+                "Run: pip install google-genai"
             )
 
-        genai.configure(api_key=api_key)
-        self._genai = genai
-        return genai
+        self._genai = _genai
+        self._genai_client = _genai.Client(api_key=api_key)
+        return _genai
 
     # ------------------------------------------------------------------
     # Key rotation
@@ -426,7 +445,7 @@ class GeminiClient(BaseLLMClient):
         for _ in range(n):
             ks = self._keys[self._current_key_idx]
             if not ks.is_exhausted:
-                logger.info(
+                logger.debug(
                     "Rotated API key from %s to %s (reason: %s)",
                     self._keys[old_idx].key_id,
                     ks.key_id,
@@ -515,6 +534,32 @@ class GeminiClient(BaseLLMClient):
             return self.model_flash
 
     # ------------------------------------------------------------------
+    # Model invocation (SDK-agnostic)
+    # ------------------------------------------------------------------
+    def _call_model(
+        self,
+        model_name: str,
+        prompt: str,
+        system_instruction: str | None,
+        json_mode: bool,
+    ) -> str:
+        """Invoke the Gemini model via ``google-genai`` and return text."""
+        from google.genai import types  # type: ignore[import-untyped]
+
+        gen_config = types.GenerateContentConfig(
+            temperature=self.temperature,
+            max_output_tokens=self.max_output_tokens,
+            system_instruction=system_instruction,
+            response_mime_type="application/json" if json_mode else None,
+        )
+        response = self._genai_client.models.generate_content(
+            model=model_name,
+            contents=prompt,
+            config=gen_config,
+        )
+        return response.text or ""
+
+    # ------------------------------------------------------------------
     # Core generate
     # ------------------------------------------------------------------
     async def generate(
@@ -582,28 +627,14 @@ class GeminiClient(BaseLLMClient):
                 )
                 await asyncio.sleep(wait_time)
 
-        # ----- Build generation config -----
-        generation_config: dict[str, Any] = {
-            "temperature": self.temperature,
-            "max_output_tokens": self.max_output_tokens,
-        }
-        if json_mode:
-            generation_config["response_mime_type"] = "application/json"
-
-        model_kwargs: dict[str, Any] = {
-            "model_name": model_name,
-            "generation_config": generation_config,
-        }
-        if system_instruction:
-            model_kwargs["system_instruction"] = system_instruction
-
-        model = genai.GenerativeModel(**model_kwargs)
-
         # ----- Retry loop with exponential backoff -----
         last_exc: Exception | None = None
         for attempt in range(self._max_retries + 1):
             try:
-                response = model.generate_content(prompt)
+                # --- Call the correct SDK ---
+                response_text = self._call_model(
+                    model_name, prompt, system_instruction, json_mode,
+                )
                 self._total_requests += 1
                 key_state.total_requests += 1
                 key_state.last_used = time.monotonic()
@@ -613,19 +644,19 @@ class GeminiClient(BaseLLMClient):
                 if system_instruction:
                     input_tokens += _estimate_tokens(system_instruction)
                 output_tokens = (
-                    _estimate_tokens(response.text) if response.text else 0
+                    _estimate_tokens(response_text) if response_text else 0
                 )
                 key_state.total_input_tokens_est += input_tokens
                 key_state.total_output_tokens_est += output_tokens
 
                 # ----- Parse response -----
-                if not response.text:
+                if not response_text:
                     logger.warning("Empty response from %s", model_name)
                     result: dict[str, Any] | str = {} if json_mode else ""
                 elif json_mode:
-                    result = self._parse_json_response(response.text, model_name)
+                    result = self._parse_json_response(response_text, model_name)
                 else:
-                    result = response.text
+                    result = response_text
 
                 # ----- Cache the result -----
                 cache_value = (
@@ -645,9 +676,9 @@ class GeminiClient(BaseLLMClient):
                     key_state.total_errors += 1
                     key_state.last_error = str(e)
                     logger.error(
-                        "Non-retryable Gemini error on key %s: %s",
+                        "Gemini error (key %s): %s",
                         key_state.key_id,
-                        e,
+                        _clean_error(e),
                     )
                     raise
 
@@ -657,16 +688,14 @@ class GeminiClient(BaseLLMClient):
                     new_key = self._rotate_key("429-rate-limit")
                     if new_key is not None and new_key is not key_state:
                         key_state = new_key
-                        genai = self._init_sdk(key_state.key)
+                        self._init_sdk(key_state.key)
                         limiter = (
                             key_state.pro_limiter
                             if use_pro
                             else key_state.flash_limiter
                         )
-                        model_kwargs_copy = dict(model_kwargs)
-                        model = genai.GenerativeModel(**model_kwargs_copy)
                         # After key rotation, retry immediately (no backoff)
-                        logger.info(
+                        logger.debug(
                             "Retrying on new key %s after 429",
                             key_state.key_id,
                         )
@@ -674,15 +703,13 @@ class GeminiClient(BaseLLMClient):
 
                 if attempt < self._max_retries:
                     backoff = 2**attempt
-                    logger.warning(
-                        "Gemini API error (attempt %d/%d, key %s, status %s): %s "
-                        "-- retrying in %ds",
+                    logger.debug(
+                        "Gemini retry %d/%d (key %s, status %s): %s",
                         attempt + 1,
                         self._max_retries + 1,
                         key_state.key_id,
                         status,
-                        e,
-                        backoff,
+                        _clean_error(e),
                     )
                     await asyncio.sleep(backoff)
                 else:
@@ -690,10 +717,10 @@ class GeminiClient(BaseLLMClient):
                     key_state.total_errors += 1
                     key_state.last_error = str(e)
                     logger.error(
-                        "Gemini API failed after %d attempts on key %s: %s",
+                        "Gemini failed after %d attempts (key %s): %s",
                         self._max_retries + 1,
                         key_state.key_id,
-                        e,
+                        _clean_error(e),
                     )
                     raise
 
@@ -742,7 +769,7 @@ class GeminiClient(BaseLLMClient):
                         system_instruction=system_instruction,
                     )
                 except Exception as e:
-                    logger.error("Batch request failed: %s", e)
+                    logger.error("Batch request failed: %s", _clean_error(e))
                     return {
                         "error": True,
                         "error_type": type(e).__name__,

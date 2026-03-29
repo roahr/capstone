@@ -103,21 +103,24 @@ def setup_nvd(output_dir: Path, api_key: str | None = None, years: str = "2024-2
     for year in range(start_year, end_year + 1):
         print(f"\n  [>] Downloading CVEs for {year} ...")
         try:
-            year_cves = indexer.download_nvd_data(
+            result_dir = indexer.download_nvd_data(
                 output_dir=str(nvd_dir),
                 year_start=year,
                 year_end=year,
             )
-            if isinstance(year_cves, list):
-                all_cves.extend(year_cves)
-                print(f"      {year}: {len(year_cves)} CVEs")
-            elif isinstance(year_cves, (str, Path)):
-                # Returned a file path -- load it
-                with open(year_cves) as f:
+            # download_nvd_data returns the output directory Path.
+            # Parse the JSON files it wrote to collect CVE entries.
+            result_dir = Path(result_dir)
+            year_entries = []
+            for json_file in sorted(result_dir.glob(f"nvd_{year}_*.json")):
+                with open(json_file, encoding="utf-8") as f:
                     data = json.load(f)
-                if isinstance(data, list):
-                    all_cves.extend(data)
-                    print(f"      {year}: {len(data)} CVEs")
+                for vuln in data.get("vulnerabilities", []):
+                    entry = indexer.parse_cve_entry(vuln)
+                    if entry["description"]:
+                        year_entries.append(entry)
+            all_cves.extend(year_entries)
+            print(f"      {year}: {len(year_entries)} CVEs")
         except Exception as e:
             print(f"  [!] {year} failed: {e}")
             continue

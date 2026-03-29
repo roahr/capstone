@@ -156,6 +156,11 @@ class AttackerVerdict(BaseModel):
     blocking_factors: list[str] = Field(default_factory=list)
     confidence: float = Field(0.0, ge=0.0, le=1.0)
     reasoning: str = ""
+    attack_vector: str = "network"  # network|adjacent|local|physical
+    attack_complexity: str = "low"  # low|high
+    privileges_required: str = "none"  # none|low|high
+    user_interaction: str = "none"  # none|required
+    evidence_steps: list[str] = Field(default_factory=list)
 
 
 class DefenderVerdict(BaseModel):
@@ -166,6 +171,11 @@ class DefenderVerdict(BaseModel):
     path_feasible: bool = True
     defense_coverage_score: float = Field(0.0, ge=0.0, le=1.0)
     reasoning: str = ""
+    scope: str = "unchanged"  # unchanged|changed
+    confidentiality_impact: str = "none"  # none|low|high
+    integrity_impact: str = "none"  # none|low|high
+    availability_impact: str = "none"  # none|low|high
+    defense_evidence: list[str] = Field(default_factory=list)
 
 
 class LLMValidation(BaseModel):
@@ -176,6 +186,10 @@ class LLMValidation(BaseModel):
     consensus_confidence: float = Field(0.0, ge=0.0, le=1.0)
     model_used: str = ""
     nl_explanation: str = ""
+    cvss_base_score: float = 0.0
+    cvss_vector: str = ""
+    cvss_severity: str = "none"  # critical|high|medium|low|none
+    evidence_narrative: str = ""
 
 
 class Finding(BaseModel):
@@ -215,6 +229,9 @@ class Finding(BaseModel):
 
     # Final (Module 4) results
     fused_score: float = Field(0.0, ge=0.0, le=1.0)
+    cvss_base_score: float = 0.0
+    cvss_vector: str = ""
+    cvss_severity: str = ""
     stage_resolved: StageResolved = StageResolved.UNRESOLVED
     nl_explanation: str = ""
     remediation: str = ""

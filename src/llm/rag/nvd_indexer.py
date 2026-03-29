@@ -19,7 +19,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -84,9 +84,7 @@ class NVDIndexer:
         total_cves = 0
 
         for year in range(year_start, year_end + 1):
-            pub_start = f"{year}-01-01T00:00:00.000"
-            pub_end = f"{year}-12-31T23:59:59.999"
-            year_cves = self._download_year(output_dir, year, pub_start, pub_end)
+            year_cves = self._download_year(output_dir, year, "", "")
             total_cves += year_cves
             logger.info("Year %d: downloaded %d CVEs", year, year_cves)
 
@@ -121,10 +119,10 @@ class NVDIndexer:
             # Default: last 24 hours
             from datetime import timedelta
             start_dt = datetime.now(timezone.utc) - timedelta(days=1)
-            last_modified_start = start_dt.strftime("%Y-%m-%dT%H:%M:%S.000")
+            last_modified_start = start_dt.strftime("%Y-%m-%dT%H:%M:%S.000+00:00")
 
         end_dt = datetime.now(timezone.utc)
-        last_modified_end = end_dt.strftime("%Y-%m-%dT%H:%M:%S.000")
+        last_modified_end = end_dt.strftime("%Y-%m-%dT%H:%M:%S.000+00:00")
 
         params: dict[str, Any] = {
             "lastModStartDate": last_modified_start,
@@ -339,43 +337,65 @@ class NVDIndexer:
         pub_start: str,
         pub_end: str,
     ) -> int:
-        """Download all CVEs for a single year, handling pagination."""
-        params: dict[str, Any] = {
-            "pubStartDate": pub_start,
-            "pubEndDate": pub_end,
-            "resultsPerPage": NVD_PAGE_SIZE,
-            "startIndex": 0,
-        }
+        """Download all CVEs for a single year, handling pagination.
 
+        The NVD API enforces a 120-day maximum date range per request,
+        so each year is split into 90-day chunks automatically.
+        """
+        chunk_start = datetime(year, 1, 1, tzinfo=timezone.utc)
+        year_end_dt = datetime(year, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        chunk_days = 90
         total_fetched = 0
-        page = 0
+        file_counter = 0
 
-        while True:
-            params["startIndex"] = page * NVD_PAGE_SIZE
-            data = self._api_request(params)
-            if data is None:
-                logger.error("API request failed for year %d page %d", year, page)
-                break
+        while chunk_start <= year_end_dt:
+            chunk_end = min(chunk_start + timedelta(days=chunk_days), year_end_dt)
+            cs = chunk_start.strftime("%Y-%m-%dT%H:%M:%S.000+00:00")
+            ce = chunk_end.strftime("%Y-%m-%dT%H:%M:%S.999+00:00")
 
-            total_results = data.get("totalResults", 0)
-            vulnerabilities = data.get("vulnerabilities", [])
-
-            if not vulnerabilities:
-                break
-
-            out_file = output_dir / f"nvd_{year}_{page:04d}.json"
-            with open(out_file, "w", encoding="utf-8") as fh:
-                json.dump(data, fh, indent=2)
-
-            total_fetched += len(vulnerabilities)
             logger.info(
-                "Year %d page %d: %d CVEs (total: %d/%d)",
-                year, page, len(vulnerabilities), total_fetched, total_results,
+                "Year %d chunk: %s -> %s",
+                year, cs[:10], ce[:10],
             )
 
-            if total_fetched >= total_results:
-                break
-            page += 1
+            page = 0
+            while True:
+                params: dict[str, Any] = {
+                    "pubStartDate": cs,
+                    "pubEndDate": ce,
+                    "resultsPerPage": NVD_PAGE_SIZE,
+                    "startIndex": page * NVD_PAGE_SIZE,
+                }
+                data = self._api_request(params)
+                if data is None:
+                    logger.error(
+                        "API request failed for year %d chunk %s page %d",
+                        year, cs[:10], page,
+                    )
+                    break
+
+                total_results = data.get("totalResults", 0)
+                vulnerabilities = data.get("vulnerabilities", [])
+
+                if not vulnerabilities:
+                    break
+
+                out_file = output_dir / f"nvd_{year}_{file_counter:04d}.json"
+                with open(out_file, "w", encoding="utf-8") as fh:
+                    json.dump(data, fh, indent=2)
+                file_counter += 1
+
+                total_fetched += len(vulnerabilities)
+                logger.info(
+                    "Year %d page %d: %d CVEs (total: %d/%d)",
+                    year, page, len(vulnerabilities), total_fetched, total_results,
+                )
+
+                if (page + 1) * NVD_PAGE_SIZE >= total_results:
+                    break
+                page += 1
+
+            chunk_start = chunk_end + timedelta(seconds=1)
 
         return total_fetched
 

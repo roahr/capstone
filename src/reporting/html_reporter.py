@@ -322,10 +322,10 @@ class HTMLReporter:
             self._render_findings_section(
                 result, total, confirmed, likely, potential, safe_count,
             ),
-            self._render_methodology(),
             self._render_footer(result),
             "</div>",
             self._render_modal(),
+            self._render_methodology(),
             "<script>",
             self._render_javascript(findings_json),
             "</script>",
@@ -345,14 +345,12 @@ class HTMLReporter:
         return f"""
 <nav class="report-nav" id="reportNav">
     <div class="nav-brand">
-        {self._icon('shield', 20, '#38bdf8')}
         <span>Sec-C</span>
     </div>
     <div class="nav-links">
         <a href="#summary">Summary</a>
         <a href="#pipeline">Pipeline</a>
         <a href="#findings">Findings</a>
-        <a href="#methodology">Methodology</a>
     </div>
     <button class="nav-print" onclick="window.print()" title="Print or save as PDF">
         {self._icon('printer', 16)}
@@ -375,7 +373,6 @@ class HTMLReporter:
 <section class="report-header" id="summary">
     <div class="header-top">
         <div class="header-brand">
-            <div class="brand-icon">{self._icon('shield', 40, '#38bdf8')}</div>
             <div>
                 <h1>Sec-C</h1>
                 <p class="framework-name">Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection</p>
@@ -458,7 +455,23 @@ class HTMLReporter:
         sast_pct = result.resolved_at_sast / max(total, 1) * 100
         graph_pct = result.resolved_at_graph / max(total, 1) * 100
         llm_pct = result.resolved_at_llm / max(total, 1) * 100
-        unresolved_pct = result.unresolved / max(total, 1) * 100
+
+        # Only show the unresolved box if there actually are unresolved findings
+        unresolved_html = ""
+        if result.unresolved > 0:
+            unresolved_pct = result.unresolved / max(total, 1) * 100
+            unresolved_html = f"""
+        <div class="pipeline-connector">
+            <div class="connector-line"></div>
+            {self._icon('chevron-right', 20, '#475569')}
+        </div>
+        <div class="pipeline-stage stage-unresolved">
+            <div class="stage-icon">{self._icon('alert-triangle', 28, '#ef4444')}</div>
+            <div class="stage-name">Unresolved</div>
+            <div class="stage-subtitle">Requires Review</div>
+            <div class="stage-count">{result.unresolved}</div>
+            <div class="stage-pct">{unresolved_pct:.0f}% remaining</div>
+        </div>"""
 
         return f"""
 <section class="section-card" id="pipeline">
@@ -500,18 +513,7 @@ class HTMLReporter:
             <div class="stage-subtitle">Adversarial Validation</div>
             <div class="stage-count">{result.resolved_at_llm}</div>
             <div class="stage-pct">{llm_pct:.0f}% resolved</div>
-        </div>
-        <div class="pipeline-connector">
-            <div class="connector-line"></div>
-            {self._icon('chevron-right', 20, '#475569')}
-        </div>
-        <div class="pipeline-stage stage-unresolved">
-            <div class="stage-icon">{self._icon('alert-triangle', 28, '#ef4444')}</div>
-            <div class="stage-name">Unresolved</div>
-            <div class="stage-subtitle">Requires Review</div>
-            <div class="stage-count">{result.unresolved}</div>
-            <div class="stage-pct">{unresolved_pct:.0f}% remaining</div>
-        </div>
+        </div>{unresolved_html}
     </div>
 </section>"""
 
@@ -578,6 +580,11 @@ class HTMLReporter:
         potential: int,
         safe_count: int,
     ) -> str:
+        # Stage-wise counts for the primary filter
+        sast_n = result.resolved_at_sast
+        graph_n = result.resolved_at_graph
+        llm_n = result.resolved_at_llm
+
         return f"""
 <section class="section-card" id="findings">
     <div class="section-header">
@@ -585,13 +592,22 @@ class HTMLReporter:
         <h2>Detailed Findings</h2>
     </div>
     <div class="findings-toolbar">
-        <div class="filter-group">
-            {self._icon('filter', 14, '#94a3b8')}
-            <button class="filter-btn active" onclick="filterFindings('all',this)">All ({total})</button>
-            <button class="filter-btn" onclick="filterFindings('confirmed',this)">Confirmed ({confirmed})</button>
-            <button class="filter-btn" onclick="filterFindings('likely',this)">Likely ({likely})</button>
-            <button class="filter-btn" onclick="filterFindings('potential',this)">Potential ({potential})</button>
-            <button class="filter-btn" onclick="filterFindings('safe',this)">Safe ({safe_count})</button>
+        <div class="filter-row">
+            <div class="filter-group">
+                <span class="filter-label">{self._icon('layers', 14, '#94a3b8')} Stage</span>
+                <button class="filter-btn stage-btn active" onclick="filterByStage('all',this)">All ({total})</button>
+                <button class="filter-btn stage-btn stage-tag-sast" onclick="filterByStage('sast',this)">SAST ({sast_n})</button>
+                <button class="filter-btn stage-btn stage-tag-graph" onclick="filterByStage('graph',this)">Graph ({graph_n})</button>
+                <button class="filter-btn stage-btn stage-tag-llm" onclick="filterByStage('llm',this)">LLM ({llm_n})</button>
+            </div>
+            <div class="filter-group">
+                <span class="filter-label">{self._icon('filter', 14, '#94a3b8')} Verdict</span>
+                <button class="filter-btn verdict-btn active" onclick="filterByVerdict('all',this)">All</button>
+                <button class="filter-btn verdict-btn" onclick="filterByVerdict('confirmed',this)">Confirmed ({confirmed})</button>
+                <button class="filter-btn verdict-btn" onclick="filterByVerdict('likely',this)">Likely ({likely})</button>
+                <button class="filter-btn verdict-btn" onclick="filterByVerdict('potential',this)">Potential ({potential})</button>
+                <button class="filter-btn verdict-btn" onclick="filterByVerdict('safe',this)">Safe ({safe_count})</button>
+            </div>
         </div>
         <div class="search-box">
             {self._icon('search', 14, '#94a3b8')}
@@ -603,13 +619,14 @@ class HTMLReporter:
             <thead>
                 <tr>
                     <th class="sortable" onclick="sortTable(0)">#</th>
-                    <th class="sortable" onclick="sortTable(1)">Verdict</th>
-                    <th class="sortable" onclick="sortTable(2)">Severity</th>
+                    <th class="sortable" onclick="sortTable(1)">Stage</th>
+                    <th class="sortable" onclick="sortTable(2)">Verdict</th>
+                    <th class="sortable" onclick="sortTable(3)">Severity</th>
                     <th>CWE</th>
                     <th>Location</th>
                     <th>Description</th>
-                    <th class="sortable" onclick="sortTable(6)">Score</th>
-                    <th class="sortable" onclick="sortTable(7)">Stage</th>
+                    <th class="sortable" onclick="sortTable(7)">Score</th>
+                    <th class="sortable" onclick="sortTable(8)">CVSS</th>
                 </tr>
             </thead>
             <tbody>
@@ -624,160 +641,170 @@ class HTMLReporter:
 
     def _render_methodology(self) -> str:
         return f"""
-<section class="section-card" id="methodology">
-    <div class="section-header">
-        {self._icon('info', 20, '#38bdf8')}
+<!-- Floating help button -->
+<button class="help-fab" onclick="toggleMethodology()" title="Analysis Methodology" id="helpFab">
+    {self._icon('info', 22, '#0f1419')}
+</button>
+
+<!-- Methodology slide-out panel -->
+<div class="methodology-panel" id="methodologyPanel">
+    <div class="methodology-panel-header">
         <h2>Analysis Methodology</h2>
+        <button class="modal-close" onclick="toggleMethodology()">
+            {self._icon('x-close', 20)}
+        </button>
     </div>
-    <p class="section-desc">
-        Sec-C employs a multi-stage cascade architecture where each finding is progressively
-        analyzed through independent detection methods. This section explains each stage and
-        how to interpret the results presented in this report.
-    </p>
+    <div class="methodology-panel-body">
+        <p class="section-desc">
+            Sec-C employs a multi-stage cascade architecture where each finding is progressively
+            analyzed through independent detection methods. This section explains each stage and
+            how to interpret the results presented in this report.
+        </p>
 
-    <div class="methodology-grid">
-        <div class="method-card">
-            <div class="method-header">
-                <div class="method-icon" style="--method-color:#22c55e">
-                    {self._icon('code', 24, '#22c55e')}
+        <div class="methodology-grid">
+            <div class="method-card">
+                <div class="method-header">
+                    <div class="method-icon" style="--method-color:#22c55e">
+                        {self._icon('code', 24, '#22c55e')}
+                    </div>
+                    <div>
+                        <h3>Stage 1: Static Application Security Testing (SAST)</h3>
+                        <span class="method-tech">CodeQL + Tree-sitter</span>
+                    </div>
                 </div>
-                <div>
-                    <h3>Stage 1: Static Application Security Testing (SAST)</h3>
-                    <span class="method-tech">CodeQL + Tree-sitter</span>
+                <div class="method-body">
+                    <p>Employs CodeQL semantic analysis and Tree-sitter AST parsing to perform
+                    inter-procedural taint analysis across supported languages. Identifies potential
+                    vulnerabilities by tracing data flows from untrusted sources to security-sensitive
+                    sinks, with pattern matching against known vulnerability signatures.</p>
+                    <div class="method-plain">
+                        <div class="plain-label">{self._icon('info', 14, '#818cf8')} In Plain Terms</div>
+                        <p>This stage reads through your source code without running it, looking for
+                        patterns that commonly indicate security vulnerabilities. It traces how data
+                        flows through your program &mdash; from user inputs to sensitive operations
+                        like database queries or file writes &mdash; to identify places where
+                        untrusted data might be used unsafely.</p>
+                    </div>
                 </div>
             </div>
-            <div class="method-body">
-                <p>Employs CodeQL semantic analysis and Tree-sitter AST parsing to perform
-                inter-procedural taint analysis across supported languages. Identifies potential
-                vulnerabilities by tracing data flows from untrusted sources to security-sensitive
-                sinks, with pattern matching against known vulnerability signatures.</p>
-                <div class="method-plain">
-                    <div class="plain-label">{self._icon('info', 14, '#818cf8')} In Plain Terms</div>
-                    <p>This stage reads through your source code without running it, looking for
-                    patterns that commonly indicate security vulnerabilities. It traces how data
-                    flows through your program &mdash; from user inputs to sensitive operations
-                    like database queries or file writes &mdash; to identify places where
-                    untrusted data might be used unsafely.</p>
+
+            <div class="method-card">
+                <div class="method-header">
+                    <div class="method-icon" style="--method-color:#38bdf8">
+                        {self._icon('network', 24, '#38bdf8')}
+                    </div>
+                    <div>
+                        <h3>Stage 2: Graph Neural Network Analysis</h3>
+                        <span class="method-tech">Joern CPG + Mini-GAT + TorchCP Conformal Prediction</span>
+                    </div>
+                </div>
+                <div class="method-body">
+                    <p>Constructs Code Property Graphs (CPGs) via Joern, capturing control flow,
+                    data flow, and program dependence relationships. A Mini-GAT (Graph Attention
+                    Network) model processes these graphs to identify complex vulnerability patterns
+                    that span multiple functions and files. TorchCP conformal prediction provides
+                    calibrated uncertainty estimates with statistical coverage guarantees.</p>
+                    <div class="method-plain">
+                        <div class="plain-label">{self._icon('info', 14, '#818cf8')} In Plain Terms</div>
+                        <p>This stage builds a detailed map of how your code connects &mdash; which
+                        functions call which, how data moves between components, and how different
+                        parts depend on each other. A specialized AI model analyzes these connections
+                        to catch vulnerabilities that simple pattern matching would miss, and assigns
+                        a mathematically-grounded confidence score to each finding.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="method-card">
+                <div class="method-header">
+                    <div class="method-icon" style="--method-color:#eab308">
+                        {self._icon('cpu', 24, '#eab308')}
+                    </div>
+                    <div>
+                        <h3>Stage 3: LLM-Powered Adversarial Validation</h3>
+                        <span class="method-tech">Gemini 2.5 Dual-Agent + NVD RAG</span>
+                    </div>
+                </div>
+                <div class="method-body">
+                    <p>Deploys a dual-agent architecture: an attacker agent constructs potential
+                    exploitation scenarios while a defender agent evaluates mitigating controls and
+                    contextual factors. Findings are cross-referenced against the National
+                    Vulnerability Database (NVD) via FAISS/BM25 retrieval-augmented generation to
+                    validate against known vulnerability patterns and assess real-world
+                    exploitability.</p>
+                    <div class="method-plain">
+                        <div class="plain-label">{self._icon('info', 14, '#818cf8')} In Plain Terms</div>
+                        <p>This stage uses AI to simulate both an attacker trying to exploit the
+                        vulnerability and a defender evaluating whether existing protections would
+                        prevent the attack. It also checks each finding against a database of known
+                        real-world vulnerabilities to assess how likely the issue is to be
+                        exploitable in practice.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="method-card">
+                <div class="method-header">
+                    <div class="method-icon" style="--method-color:#818cf8">
+                        {self._icon('layers', 24, '#818cf8')}
+                    </div>
+                    <div>
+                        <h3>Cascade Score Fusion &amp; Uncertainty-Driven Escalation</h3>
+                        <span class="method-tech">&alpha;&middot;SAST + &beta;&middot;GAT + &gamma;&middot;LLM</span>
+                    </div>
+                </div>
+                <div class="method-body">
+                    <p>Final verdicts are computed via weighted score fusion with uncertainty-driven
+                    escalation. Findings with high uncertainty at any stage are automatically
+                    escalated to deeper analysis rather than prematurely classified, ensuring that
+                    ambiguous cases receive the most thorough review. This approach minimizes both
+                    false positives and false negatives.</p>
+                    <div class="method-plain">
+                        <div class="plain-label">{self._icon('info', 14, '#818cf8')} In Plain Terms</div>
+                        <p>The framework combines the assessments from all three stages into a single
+                        confidence score. When a stage is uncertain about a finding, it passes it
+                        forward for deeper analysis rather than guessing &mdash; this means findings
+                        classified as &ldquo;Confirmed&rdquo; or &ldquo;Safe&rdquo; have been
+                        thoroughly vetted through multiple independent analysis methods.</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="method-card">
-            <div class="method-header">
-                <div class="method-icon" style="--method-color:#38bdf8">
-                    {self._icon('network', 24, '#38bdf8')}
+        <div class="verdict-guide">
+            <h3>Understanding Verdicts</h3>
+            <div class="verdict-grid">
+                <div class="verdict-item">
+                    <span class="badge badge-confirmed">Confirmed</span>
+                    <p>High-confidence finding validated by multiple analysis stages.
+                    Recommended for immediate remediation.</p>
                 </div>
-                <div>
-                    <h3>Stage 2: Graph Neural Network Analysis</h3>
-                    <span class="method-tech">Joern CPG + Mini-GAT + TorchCP Conformal Prediction</span>
+                <div class="verdict-item">
+                    <span class="badge badge-likely">Likely</span>
+                    <p>Strong indicators of vulnerability with moderate confidence.
+                    Should be reviewed and prioritized for remediation.</p>
                 </div>
-            </div>
-            <div class="method-body">
-                <p>Constructs Code Property Graphs (CPGs) via Joern, capturing control flow,
-                data flow, and program dependence relationships. A Mini-GAT (Graph Attention
-                Network) model processes these graphs to identify complex vulnerability patterns
-                that span multiple functions and files. TorchCP conformal prediction provides
-                calibrated uncertainty estimates with statistical coverage guarantees.</p>
-                <div class="method-plain">
-                    <div class="plain-label">{self._icon('info', 14, '#818cf8')} In Plain Terms</div>
-                    <p>This stage builds a detailed map of how your code connects &mdash; which
-                    functions call which, how data moves between components, and how different
-                    parts depend on each other. A specialized AI model analyzes these connections
-                    to catch vulnerabilities that simple pattern matching would miss, and assigns
-                    a mathematically-grounded confidence score to each finding.</p>
+                <div class="verdict-item">
+                    <span class="badge badge-potential">Potential</span>
+                    <p>Possible vulnerability detected with lower confidence.
+                    Warrants manual review for confirmation.</p>
                 </div>
-            </div>
-        </div>
-
-        <div class="method-card">
-            <div class="method-header">
-                <div class="method-icon" style="--method-color:#eab308">
-                    {self._icon('cpu', 24, '#eab308')}
-                </div>
-                <div>
-                    <h3>Stage 3: LLM-Powered Adversarial Validation</h3>
-                    <span class="method-tech">Gemini 2.5 Dual-Agent + NVD RAG</span>
-                </div>
-            </div>
-            <div class="method-body">
-                <p>Deploys a dual-agent architecture: an attacker agent constructs potential
-                exploitation scenarios while a defender agent evaluates mitigating controls and
-                contextual factors. Findings are cross-referenced against the National
-                Vulnerability Database (NVD) via FAISS/BM25 retrieval-augmented generation to
-                validate against known vulnerability patterns and assess real-world
-                exploitability.</p>
-                <div class="method-plain">
-                    <div class="plain-label">{self._icon('info', 14, '#818cf8')} In Plain Terms</div>
-                    <p>This stage uses AI to simulate both an attacker trying to exploit the
-                    vulnerability and a defender evaluating whether existing protections would
-                    prevent the attack. It also checks each finding against a database of known
-                    real-world vulnerabilities to assess how likely the issue is to be
-                    exploitable in practice.</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="method-card">
-            <div class="method-header">
-                <div class="method-icon" style="--method-color:#818cf8">
-                    {self._icon('layers', 24, '#818cf8')}
-                </div>
-                <div>
-                    <h3>Cascade Score Fusion &amp; Uncertainty-Driven Escalation</h3>
-                    <span class="method-tech">&alpha;&middot;SAST + &beta;&middot;GAT + &gamma;&middot;LLM</span>
-                </div>
-            </div>
-            <div class="method-body">
-                <p>Final verdicts are computed via weighted score fusion with uncertainty-driven
-                escalation. Findings with high uncertainty at any stage are automatically
-                escalated to deeper analysis rather than prematurely classified, ensuring that
-                ambiguous cases receive the most thorough review. This approach minimizes both
-                false positives and false negatives.</p>
-                <div class="method-plain">
-                    <div class="plain-label">{self._icon('info', 14, '#818cf8')} In Plain Terms</div>
-                    <p>The framework combines the assessments from all three stages into a single
-                    confidence score. When a stage is uncertain about a finding, it passes it
-                    forward for deeper analysis rather than guessing &mdash; this means findings
-                    classified as &ldquo;Confirmed&rdquo; or &ldquo;Safe&rdquo; have been
-                    thoroughly vetted through multiple independent analysis methods.</p>
+                <div class="verdict-item">
+                    <span class="badge badge-safe">Safe</span>
+                    <p>Initially flagged but determined to be a false positive through
+                    multi-stage analysis. No action required.</p>
                 </div>
             </div>
         </div>
     </div>
-
-    <div class="verdict-guide">
-        <h3>Understanding Verdicts</h3>
-        <div class="verdict-grid">
-            <div class="verdict-item">
-                <span class="badge badge-confirmed">Confirmed</span>
-                <p>High-confidence finding validated by multiple analysis stages.
-                Recommended for immediate remediation.</p>
-            </div>
-            <div class="verdict-item">
-                <span class="badge badge-likely">Likely</span>
-                <p>Strong indicators of vulnerability with moderate confidence.
-                Should be reviewed and prioritized for remediation.</p>
-            </div>
-            <div class="verdict-item">
-                <span class="badge badge-potential">Potential</span>
-                <p>Possible vulnerability detected with lower confidence.
-                Warrants manual review for confirmation.</p>
-            </div>
-            <div class="verdict-item">
-                <span class="badge badge-safe">Safe</span>
-                <p>Initially flagged but determined to be a false positive through
-                multi-stage analysis. No action required.</p>
-            </div>
-        </div>
-    </div>
-</section>"""
+</div>
+<div class="methodology-backdrop" id="methodologyBackdrop" onclick="toggleMethodology()"></div>"""
 
     def _render_footer(self, result: ScanResult) -> str:
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return f"""
 <footer class="report-footer">
     <div class="footer-brand">
-        {self._icon('shield', 16, '#475569')}
         <span>Sec-C v2.0.0</span>
     </div>
     <p>Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection</p>
@@ -806,6 +833,8 @@ class HTMLReporter:
     def _render_css(self) -> str:
         """Return all CSS rules. Plain string (not f-string) — no brace escaping."""
         return """
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
 :root {
     --bg-body: #0f1419;
     --bg-primary: #151b23;
@@ -837,8 +866,7 @@ html { scroll-behavior: smooth; scroll-padding-top: 56px; }
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, 'Noto Sans',
-                 Helvetica, Arial, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     background: var(--bg-body);
     color: var(--text-primary);
     line-height: 1.6;
@@ -873,9 +901,13 @@ body {
     align-items: center;
     gap: 8px;
     font-weight: 700;
-    font-size: 0.95rem;
     color: var(--accent);
     flex-shrink: 0;
+}
+.nav-brand span {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 1rem;
+    letter-spacing: 2px;
 }
 .nav-links { display: flex; gap: 4px; flex: 1; }
 .nav-links a {
@@ -919,6 +951,10 @@ body {
 /* ---- Report header ---- */
 .report-header {
     background: var(--bg-primary);
+    background-image:
+        linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+    background-size: 20px 20px;
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
     padding: 32px;
@@ -937,20 +973,23 @@ body {
     align-items: flex-start;
     gap: 16px;
 }
-.brand-icon {
-    padding: 8px;
-    background: rgba(56,189,248,0.08);
-    border-radius: var(--radius-md);
-    flex-shrink: 0;
-}
 .header-brand h1 {
-    font-size: 1.75rem;
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
     font-weight: 800;
-    color: var(--text-primary);
-    letter-spacing: -0.5px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, #38bdf8, #818cf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
     line-height: 1.2;
+    text-shadow: 0 0 30px rgba(56,189,248,0.15);
 }
 .framework-name {
+    font-family: 'Inter', sans-serif;
+    font-weight: 300;
+    letter-spacing: 0.5px;
     color: var(--text-secondary);
     font-size: 0.875rem;
     margin-top: 4px;
@@ -973,6 +1012,7 @@ body {
     margin-bottom: 4px;
 }
 .risk-value {
+    font-family: 'Orbitron', sans-serif;
     font-size: 1.25rem;
     font-weight: 800;
     color: var(--risk-color);
@@ -1018,6 +1058,7 @@ body {
 .metric-icon { margin-bottom: 8px; }
 .metric-icon svg { display: inline-block; }
 .metric-value {
+    font-family: 'Orbitron', sans-serif;
     font-size: 2.25rem;
     font-weight: 800;
     line-height: 1.1;
@@ -1045,10 +1086,13 @@ body {
     align-items: center;
     gap: 10px;
     margin-bottom: 12px;
+    border-left: 3px solid var(--accent);
+    padding-left: 12px;
 }
 .section-header h2 {
+    font-family: 'Inter', sans-serif;
     font-size: 1.1rem;
-    font-weight: 700;
+    font-weight: 600;
     color: var(--text-primary);
 }
 .section-desc {
@@ -1088,7 +1132,12 @@ body {
     color: var(--text-muted);
     margin-bottom: 12px;
 }
-.stage-count { font-size: 2rem; font-weight: 800; line-height: 1.1; }
+.stage-count {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
 .stage-pct { font-size: 0.775rem; color: var(--text-secondary); margin-top: 4px; }
 
 .stage-sast .stage-name, .stage-sast .stage-count { color: var(--green); }
@@ -1138,6 +1187,7 @@ body {
     margin-bottom: 18px;
 }
 .chart-title h3 {
+    font-family: 'Inter', sans-serif;
     font-size: 0.825rem;
     font-weight: 600;
     text-transform: uppercase;
@@ -1312,6 +1362,37 @@ tbody tr:last-child td { border-bottom: none; }
 .badge-potential { background: rgba(56,189,248,0.15); color: var(--accent); }
 .badge-safe { background: rgba(34,197,94,0.15); color: var(--green); }
 
+.badge-cvss-critical { background: rgba(239,68,68,0.15); color: var(--red); font-family: 'Orbitron', sans-serif; }
+.badge-cvss-high { background: rgba(249,115,22,0.15); color: var(--orange); font-family: 'Orbitron', sans-serif; }
+.badge-cvss-medium { background: rgba(234,179,8,0.15); color: var(--yellow); font-family: 'Orbitron', sans-serif; }
+.badge-cvss-low { background: rgba(59,130,246,0.15); color: var(--blue); font-family: 'Orbitron', sans-serif; }
+.badge-cvss-none { background: rgba(100,116,139,0.15); color: var(--text-muted); }
+
+/* Stage tag badges */
+.stage-tag-sast { background: rgba(34,197,94,0.15); color: var(--green); }
+.stage-tag-graph { background: rgba(56,189,248,0.15); color: var(--accent); }
+.stage-tag-llm { background: rgba(234,179,8,0.15); color: var(--yellow); }
+.stage-tag-unresolved { background: rgba(239,68,68,0.15); color: var(--red); }
+
+/* Dual filter layout */
+.filter-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.filter-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-right: 4px;
+    flex-shrink: 0;
+}
+
 /* ---- Methodology ---- */
 .methodology-grid { display: grid; gap: 18px; margin-bottom: 28px; }
 .method-card {
@@ -1335,6 +1416,7 @@ tbody tr:last-child td { border-bottom: none; }
     border: 1px solid var(--method-color);
 }
 .method-header h3 {
+    font-family: 'Inter', sans-serif;
     font-size: 0.925rem;
     font-weight: 600;
     color: var(--text-primary);
@@ -1345,7 +1427,7 @@ tbody tr:last-child td { border-bottom: none; }
     font-size: 0.75rem;
     color: var(--text-muted);
     margin-top: 3px;
-    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
 }
 .method-body { padding: 18px 22px; }
 .method-body > p {
@@ -1385,6 +1467,7 @@ tbody tr:last-child td { border-bottom: none; }
     padding: 22px;
 }
 .verdict-guide h3 {
+    font-family: 'Inter', sans-serif;
     font-size: 0.9rem;
     font-weight: 600;
     color: var(--text-primary);
@@ -1496,7 +1579,7 @@ tbody tr:last-child td { border-bottom: none; }
     padding: 16px;
     overflow-x: auto;
     font-size: 0.82rem;
-    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
     line-height: 1.6;
     color: var(--text-primary);
 }
@@ -1509,6 +1592,81 @@ tbody tr:last-child td { border-bottom: none; }
     font-size: 0.85rem;
     line-height: 1.6;
     color: var(--text-secondary);
+}
+
+/* ---- Floating help button ---- */
+.help-fab {
+    position: fixed;
+    bottom: 32px;
+    right: 32px;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--accent);
+    border: none;
+    color: #0f1419;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 16px rgba(56,189,248,0.3);
+    transition: all 0.3s;
+    z-index: 60;
+}
+.help-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 24px rgba(56,189,248,0.5);
+}
+
+/* ---- Methodology panel ---- */
+.methodology-panel {
+    position: fixed;
+    top: 0;
+    right: -520px;
+    width: 500px;
+    max-width: 90vw;
+    height: 100vh;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border);
+    z-index: 200;
+    overflow-y: auto;
+    transition: right 0.35s ease;
+    box-shadow: -8px 0 32px rgba(0,0,0,0.5);
+}
+.methodology-panel.active {
+    right: 0;
+}
+.methodology-panel-header {
+    position: sticky;
+    top: 0;
+    background: var(--bg-primary);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 1;
+}
+.methodology-panel-header h2 {
+    font-family: 'Inter', sans-serif;
+    font-size: 1rem;
+    font-weight: 600;
+}
+.methodology-panel-header .modal-close {
+    position: static;
+}
+.methodology-panel-body {
+    padding: 24px;
+}
+.methodology-backdrop {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 190;
+}
+.methodology-backdrop.active {
+    display: block;
 }
 
 /* ---- Footer ---- */
@@ -1527,6 +1685,9 @@ tbody tr:last-child td { border-bottom: none; }
     font-weight: 600;
     color: var(--text-secondary);
     margin-bottom: 6px;
+}
+.footer-brand span {
+    font-family: 'Orbitron', sans-serif;
 }
 .report-footer p { margin-top: 4px; line-height: 1.5; }
 .footer-meta { margin-top: 8px !important; }
@@ -1582,23 +1743,70 @@ tbody tr:last-child td { border-bottom: none; }
         --border: #dddddd;
         --border-lt: #cccccc;
     }
+
+    @page {
+        size: A4;
+        margin: 18mm 15mm 18mm 15mm;
+    }
+
     body { font-size: 10pt; }
+
+    /* Hide interactive elements */
+    .help-fab, .methodology-panel, .methodology-backdrop { display: none !important; }
     .accent-bar, .report-nav { display: none !important; }
+    .filter-group, .search-box, .findings-toolbar { display: none; }
+    .modal-overlay { display: none !important; }
+
     .container { max-width: 100%; padding: 0; }
     .report-header, .section-card, .chart-card, .metric-card,
     .method-card, .verdict-item {
         box-shadow: none;
         break-inside: avoid;
     }
-    .modal-overlay { display: none !important; }
+
+    /* Proper page breaks */
+    .report-header { page-break-after: avoid; }
+    .metrics-grid { page-break-inside: avoid; }
+    .section-card { page-break-inside: avoid; page-break-before: auto; }
+    .chart-card { page-break-inside: avoid; }
+    .pipeline-flow { page-break-inside: avoid; }
+
+    /* Better table for PDF */
+    table { font-size: 8pt; }
+    th { background: #f0f0f0 !important; color: #333 !important; }
+    td { padding: 6px 8px; }
+
     .bar-fill, .badge, .risk-badge {
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
     }
     a { color: inherit; text-decoration: none; }
-    .filter-group, .search-box, .findings-toolbar { display: none; }
+
+    /* Footer on each page */
+    .report-footer {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        font-size: 7pt;
+        padding: 8px 0;
+        border-top: 1px solid #ccc;
+    }
+
     .footer-disclaimer { color: #999; }
-    .section-card { page-break-inside: avoid; }
+
+    /* Ensure print fonts work */
+    .header-brand h1, .nav-brand span, .risk-value, .metric-value, .stage-count {
+        -webkit-text-fill-color: initial !important;
+        background: none !important;
+        color: #1a1a1a !important;
+        font-family: 'Orbitron', Arial, sans-serif;
+    }
+
+    /* Pipeline stage colors for print */
+    .stage-sast .stage-count { color: #16a34a !important; }
+    .stage-graph .stage-count { color: #0284c7 !important; }
+    .stage-llm .stage-count { color: #ca8a04 !important; }
+    .stage-unresolved .stage-count { color: #dc2626 !important; }
 }
 """
 
@@ -1609,13 +1817,22 @@ tbody tr:last-child td { border-bottom: none; }
     def _render_javascript(self, findings_json: str) -> str:
         """Return all client-side JS. Uses string concat to avoid brace escaping."""
         return "const findings = " + findings_json + ";\n" + """
-var currentFilter = 'all';
+var currentStage = 'all';
+var currentVerdict = 'all';
 var currentSearch = '';
 
-function filterFindings(verdict, btn) {
-    currentFilter = verdict;
+function filterByStage(stage, btn) {
+    currentStage = stage;
     applyFilters();
-    var buttons = document.querySelectorAll('.filter-btn');
+    var buttons = document.querySelectorAll('.stage-btn');
+    for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
+    if (btn) btn.classList.add('active');
+}
+
+function filterByVerdict(verdict, btn) {
+    currentVerdict = verdict;
+    applyFilters();
+    var buttons = document.querySelectorAll('.verdict-btn');
     for (var i = 0; i < buttons.length; i++) buttons[i].classList.remove('active');
     if (btn) btn.classList.add('active');
 }
@@ -1631,10 +1848,11 @@ function applyFilters() {
     var total = rows.length;
     for (var i = 0; i < rows.length; i++) {
         var row = rows[i];
-        var matchVerdict = currentFilter === 'all' || row.dataset.verdict === currentFilter;
+        var matchStage = currentStage === 'all' || row.dataset.stage === currentStage;
+        var matchVerdict = currentVerdict === 'all' || row.dataset.verdict === currentVerdict;
         var text = row.textContent.toLowerCase();
         var matchSearch = !currentSearch || text.indexOf(currentSearch) !== -1;
-        if (matchVerdict && matchSearch) {
+        if (matchStage && matchVerdict && matchSearch) {
             row.style.display = '';
             visible++;
         } else {
@@ -1703,6 +1921,8 @@ function showFinding(index) {
     h += '<div class="detail-item"><div class="label">Stage Resolved</div><div class="value">' + f.stage_resolved + '</div></div>';
     h += '<div class="detail-item"><div class="label">Location</div><div class="value" style="font-family:monospace;font-size:0.85rem">' + f.location + '</div></div>';
     h += '<div class="detail-item"><div class="label">SAST Confidence</div><div class="value">' + (f.sast_confidence * 100).toFixed(0) + '%</div></div>';
+    h += '<div class="detail-item"><div class="label">CVSS v3.1</div><div class="value"><span class="badge badge-cvss-' + f.cvss_severity + '">' + f.cvss_base_score.toFixed(1) + '</span> ' + f.cvss_severity.toUpperCase() + '</div></div>';
+    h += '<div class="detail-item"><div class="label">CVSS Vector</div><div class="value" style="font-family:monospace;font-size:0.8rem">' + (f.cvss_vector || 'N/A') + '</div></div>';
     h += '</div>';
 
     h += '<div class="modal-section-title">Description</div>';
@@ -1711,6 +1931,11 @@ function showFinding(index) {
     if (f.snippet) {
         h += '<div class="modal-section-title">Source Code</div>';
         h += '<pre>' + f.snippet + '</pre>';
+    }
+
+    if (f.evidence_narrative) {
+        h += '<div class="modal-section-title">Assessment Summary</div>';
+        h += '<div class="explanation" style="border-left-color:var(--yellow)">' + f.evidence_narrative + '</div>';
     }
 
     if (f.explanation) {
@@ -1731,8 +1956,27 @@ function closeModal(event) {
     }
 }
 
+function toggleMethodology() {
+    var panel = document.getElementById('methodologyPanel');
+    var backdrop = document.getElementById('methodologyBackdrop');
+    var fab = document.getElementById('helpFab');
+    panel.classList.toggle('active');
+    backdrop.classList.toggle('active');
+    if (panel.classList.contains('active')) {
+        document.body.style.overflow = 'hidden';
+    } else {
+        document.body.style.overflow = '';
+    }
+}
+
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Escape') {
+        closeModal();
+        var panel = document.getElementById('methodologyPanel');
+        if (panel && panel.classList.contains('active')) {
+            toggleMethodology();
+        }
+    }
 });
 
 // Smooth scroll for nav links
@@ -1767,26 +2011,39 @@ for (var i = 0; i < navLinks.length; i++) {
             "stage_resolved": f.stage_resolved.value,
             "explanation": html.escape(f.nl_explanation or ""),
             "language": f.language.value,
+            "cvss_base_score": round(f.cvss_base_score, 1),
+            "cvss_vector": f.cvss_vector,
+            "cvss_severity": f.cvss_severity,
+            "evidence_narrative": f.llm_validation.evidence_narrative if f.llm_validation else "",
         }
+
+    STAGE_SORT: dict[str, int] = {
+        "sast": 1, "graph": 2, "llm": 3, "unresolved": 4,
+    }
 
     def _render_findings_rows(self, findings: list[Finding]) -> str:
         """Render HTML table rows for findings."""
+        mono = "'JetBrains Mono','SF Mono','Fira Code','Cascadia Code',Consolas,monospace"
         rows = []
         for i, f in enumerate(findings):
             sev_class = f"badge-{f.severity.value}"
             verdict_class = f"badge-{f.verdict.value}"
+            stage = f.stage_resolved.value
+            stage_class = f"stage-tag-{stage}"
             v_sort = self.VERDICT_SORT.get(f.verdict.value, 0)
             s_sort = self.SEVERITY_SORT.get(f.severity.value, 0)
+            st_sort = self.STAGE_SORT.get(stage, 9)
             row = (
-                f'<tr data-verdict="{f.verdict.value}" onclick="showFinding({i})">'
+                f'<tr data-verdict="{f.verdict.value}" data-stage="{stage}" onclick="showFinding({i})">'
                 f'<td style="color:var(--text-muted)">{i + 1}</td>'
+                f'<td data-sort="{st_sort}"><span class="badge {stage_class}">{stage.upper()}</span></td>'
                 f'<td data-sort="{v_sort}"><span class="badge {verdict_class}">{f.verdict.value}</span></td>'
                 f'<td data-sort="{s_sort}"><span class="badge {sev_class}">{f.severity.value}</span></td>'
-                f'<td style="font-family:monospace;font-size:0.8rem">{html.escape(f.cwe_id)}</td>'
-                f'<td style="font-family:monospace;font-size:0.8rem">{html.escape(f.location.display)}</td>'
+                f'<td style="font-family:{mono};font-size:0.8rem">{html.escape(f.cwe_id)}</td>'
+                f'<td style="font-family:{mono};font-size:0.8rem">{html.escape(f.location.display)}</td>'
                 f"<td>{html.escape(f.sast_message[:80])}</td>"
-                f'<td style="font-family:monospace">{f.fused_score:.2f}</td>'
-                f"<td>{f.stage_resolved.value}</td>"
+                f'<td style="font-family:{mono}">{f.fused_score:.2f}</td>'
+                f'<td><span class="badge badge-cvss-{f.cvss_severity}">{f.cvss_base_score:.1f}</span></td>'
                 f"</tr>"
             )
             rows.append(row)

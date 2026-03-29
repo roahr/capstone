@@ -1,0 +1,740 @@
+# =============================================================================
+# Sec-C Sample Test Cases — Ground Truth Manifest
+# =============================================================================
+# Multi-Stage Code Security Framework for Adaptive Vulnerability Triage
+# and Detection
+#
+# This manifest defines the expected classification for every vulnerability
+# instance in the test suite. Use it to measure precision, recall, and
+# cascade efficiency per stage.
+#
+# Fields:
+#   file                    - Relative path from sample_testcases/
+#   line                    - Primary line number of the vulnerability
+#   function                - Enclosing function or scope
+#   cwe_id                  - CWE identifier
+#   vulnerability_type      - Short name for the vulnerability class
+#   classification          - true_positive | false_positive
+#   fp_tier                 - basic | contextual | adversarial (FP only)
+#   expected_resolution     - sast | graph | llm (which stage should resolve)
+#   description             - Why this is a TP or FP
+# =============================================================================
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  PYTHON — Flask micro-app "SecureNotes"
+#  6 true positives, 6 false positives
+# ─────────────────────────────────────────────────────────────────────────────
+
+python:
+  - file: python/db.py
+    line: 79
+    function: search_notes
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      SQL injection via f-string interpolation of user_query into LIKE clause.
+      Attacker-controlled input directly embedded in SQL string.
+
+  - file: python/utils.py
+    line: 43
+    function: export_notes
+    cwe_id: CWE-78
+    vulnerability_type: os_command_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      OS command injection via os.system() with user-supplied filename
+      interpolated into shell command string.
+
+  - file: python/app.py
+    line: 186
+    function: download_file
+    cwe_id: CWE-22
+    vulnerability_type: path_traversal
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Path traversal — user-supplied filename joined to UPLOAD_DIR via
+      os.path.join without sanitization, served via send_file.
+
+  - file: python/utils.py
+    line: 94
+    function: load_session
+    cwe_id: CWE-502
+    vulnerability_type: insecure_deserialization
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Insecure deserialization — pickle.loads on user-controlled
+      base64-decoded data enables arbitrary code execution.
+
+  - file: python/app.py
+    line: 168
+    function: search_page
+    cwe_id: CWE-79
+    vulnerability_type: xss
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Reflected XSS — query parameter embedded directly in HTML response
+      without escaping via make_response.
+
+  - file: python/auth.py
+    line: 28
+    function: module_scope
+    cwe_id: CWE-798
+    vulnerability_type: hardcoded_credentials
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Hardcoded credentials — DB_PASSWORD and API_KEY defined as plain
+      string literals at module scope.
+
+  - file: python/db.py
+    line: 96
+    function: get_note_by_id
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      Parameterized query with ? placeholder and tuple binding.
+      SAST should recognize this as a safe prepared-statement pattern.
+
+  - file: python/utils.py
+    line: 67
+    function: create_backup
+    cwe_id: CWE-78
+    vulnerability_type: os_command_injection
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      subprocess.run with list args (no shell=True). No shell
+      interpretation possible — SAST should resolve by recognizing
+      the safe subprocess invocation pattern.
+
+  - file: python/db.py
+    line: 117
+    function: get_recent_notes
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      f-string SQL with int(days) cast. Type coercion guarantees only a
+      numeric literal reaches the query. Requires data-flow analysis to
+      see that the int() call sanitizes the input.
+
+  - file: python/app.py
+    line: 204
+    function: serve_avatar
+    cwe_id: CWE-22
+    vulnerability_type: path_traversal
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      os.path.realpath + startswith(UPLOAD_DIR) check guards against
+      traversal before send_file. Requires control-flow graph analysis
+      to verify the validation precedes the file access.
+
+  - file: python/utils.py
+    line: 130
+    function: calculate_expression
+    cwe_id: CWE-94
+    vulnerability_type: eval_injection
+    classification: false_positive
+    fp_tier: adversarial
+    expected_resolution: llm
+    description: >
+      eval() call guarded by strict regex allowlist ^[0-9+\-*/().  ]+$.
+      No identifiers or builtins can pass. Requires semantic reasoning
+      to determine the regex makes eval safe.
+
+  - file: python/auth.py
+    line: 50
+    function: get_db_credentials
+    cwe_id: CWE-798
+    vulnerability_type: hardcoded_credentials
+    classification: false_positive
+    fp_tier: adversarial
+    expected_resolution: llm
+    description: >
+      Variable user_password = "placeholder" immediately overwritten by
+      os.environ.get("DB_PASS"). The hardcoded value is a default that
+      never reaches production. Requires understanding initialization
+      patterns to classify as safe.
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  JAVASCRIPT — Express micro-app "TaskBoard"
+#  6 true positives, 6 false positives
+# ─────────────────────────────────────────────────────────────────────────────
+
+javascript:
+  - file: javascript/routes/tasks.js
+    line: 43
+    function: renderTaskPreview
+    cwe_id: CWE-79
+    vulnerability_type: xss
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      XSS via unsanitized taskData.description interpolated directly
+      into HTML template string without escaping.
+
+  - file: javascript/utils.js
+    line: 49
+    function: evaluateFilter
+    cwe_id: CWE-94
+    vulnerability_type: eval_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Eval injection — user-supplied filterExpr from query params
+      passed directly to eval() with no sanitization.
+
+  - file: javascript/routes/tasks.js
+    line: 95
+    function: router.get_search
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      SQL injection via template literal interpolation of req.query.q
+      into LIKE clause.
+
+  - file: javascript/routes/users.js
+    line: 113
+    function: router.get_avatar
+    cwe_id: CWE-22
+    vulnerability_type: path_traversal
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Path traversal — req.query.filename joined to uploadDir with
+      path.join, no validation, allows ../../ escape.
+
+  - file: javascript/utils.js
+    line: 29
+    function: mergeConfig
+    cwe_id: CWE-1321
+    vulnerability_type: prototype_pollution
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Prototype pollution — recursive deep merge with target[key] =
+      source[key] and no __proto__/constructor key filtering.
+
+  - file: javascript/server.js
+    line: 20
+    function: module_scope
+    cwe_id: CWE-798
+    vulnerability_type: hardcoded_credentials
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Hardcoded JWT secret "my-super-secret-jwt-key-2024" used
+      unconditionally for token signing and verification.
+
+  - file: javascript/routes/tasks.js
+    line: 237
+    function: router.get_summary
+    cwe_id: CWE-79
+    vulnerability_type: xss
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      SAST flags template interpolation into HTML, but all values
+      pass through escapeHtml() first. No injection possible.
+
+  - file: javascript/routes/tasks.js
+    line: 116
+    function: router.get_by_id
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      SAST flags SQL string with WHERE clause, but id is passed as
+      a bind parameter (?), not interpolated.
+
+  - file: javascript/utils.js
+    line: 65
+    function: snapshotConfig
+    cwe_id: CWE-94
+    vulnerability_type: eval_injection
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      SAST flags eval(), but data-flow shows input is JSON.stringify
+      of server-side config object. No user data reaches this call.
+
+  - file: javascript/routes/users.js
+    line: 131
+    function: router.get_static_asset
+    cwe_id: CWE-22
+    vulnerability_type: path_traversal
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      SAST flags path.resolve + sendFile, but control-flow shows
+      resolvedPath is checked against STATIC_ASSETS_DIR prefix
+      before serving.
+
+  - file: javascript/utils.js
+    line: 88
+    function: safeDeepMerge
+    cwe_id: CWE-1321
+    vulnerability_type: prototype_pollution
+    classification: false_positive
+    fp_tier: adversarial
+    expected_resolution: llm
+    description: >
+      SAST flags recursive target[key]=source[key], but function
+      freezes Object.prototype and skips __proto__/constructor/
+      prototype keys. No pollution vector exists.
+
+  - file: javascript/server.js
+    line: 24
+    function: module_scope
+    cwe_id: CWE-798
+    vulnerability_type: hardcoded_credentials
+    classification: false_positive
+    fp_tier: adversarial
+    expected_resolution: llm
+    description: >
+      Looks like hardcoded secret, but guard block throws Error in
+      production if env var not overridden. Placeholder never used
+      in production environments.
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  JAVA — Spring-style "UserPortal"
+#  6 true positives, 6 false positives
+# ─────────────────────────────────────────────────────────────────────────────
+
+java:
+  - file: java/DatabaseHelper.java
+    line: 63
+    function: findUsersByName
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      SQL injection via string concatenation in executeQuery with
+      user-supplied name parameter.
+
+  - file: java/UserController.java
+    line: 76
+    function: importUserData
+    cwe_id: CWE-502
+    vulnerability_type: insecure_deserialization
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Unsafe deserialization of user-controlled byte[] via
+      ObjectInputStream(new ByteArrayInputStream(data)).readObject().
+
+  - file: java/FileService.java
+    line: 51
+    function: downloadFile
+    cwe_id: CWE-22
+    vulnerability_type: path_traversal
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Path traversal via new File(BASE_DIR, filename) without
+      canonicalization or directory prefix validation.
+
+  - file: java/XmlProcessor.java
+    line: 52
+    function: parseConfig
+    cwe_id: CWE-611
+    vulnerability_type: xxe
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      XXE via DocumentBuilderFactory.newInstance() with default
+      settings — external entities remain enabled.
+
+  - file: java/DirectoryService.java
+    line: 78
+    function: findUser
+    cwe_id: CWE-90
+    vulnerability_type: ldap_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      LDAP injection via unsanitized string concatenation
+      "(uid=" + username + ")" in search filter.
+
+  - file: java/UserController.java
+    line: 104
+    function: searchUsers
+    cwe_id: CWE-79
+    vulnerability_type: xss
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      Reflected XSS via unencoded query parameter concatenated
+      into HTML response string.
+
+  - file: java/DatabaseHelper.java
+    line: 91
+    function: getUserById
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      PreparedStatement with ? parameter binding. SAST sees SQL +
+      JDBC but parameterized query prevents injection.
+
+  - file: java/XmlProcessor.java
+    line: 77
+    function: parseSecureXml
+    cwe_id: CWE-611
+    vulnerability_type: xxe
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      DocumentBuilderFactory with disallow-doctype-decl=true. SAST
+      sees factory creation but DTDs are explicitly disabled.
+
+  - file: java/UserController.java
+    line: 136
+    function: loadCachedConfig
+    cwe_id: CWE-502
+    vulnerability_type: insecure_deserialization
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      ObjectInputStream reads from hardcoded local file
+      /etc/app/config.ser. No user-controlled input in the data
+      source — requires data-flow analysis to trace the stream origin.
+
+  - file: java/FileService.java
+    line: 112
+    function: serveProfileImage
+    cwe_id: CWE-22
+    vulnerability_type: path_traversal
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      File construction with userId but canonicalized via
+      getCanonicalPath() and validated with startsWith(canonicalBase).
+      Requires control-flow analysis to verify validation.
+
+  - file: java/DatabaseHelper.java
+    line: 128
+    function: getActiveUsers
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: false_positive
+    fp_tier: adversarial
+    expected_resolution: llm
+    description: >
+      String concatenation in SQL query, but status originates from
+      AccountStatus enum (only "active"/"inactive"/"pending").
+      Constrained value space makes injection impossible.
+
+  - file: java/DirectoryService.java
+    line: 123
+    function: findUserByEmployeeId
+    cwe_id: CWE-90
+    vulnerability_type: ldap_injection
+    classification: false_positive
+    fp_tier: adversarial
+    expected_resolution: llm
+    description: >
+      LDAP filter built via string concatenation, but empId validated
+      with regex [0-9]{6} before use. Only 6-digit numeric strings
+      can reach the filter — injection is impossible.
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  C/C++ — Focused vulnerability files
+#  5 true positives, 5 false positives
+# ─────────────────────────────────────────────────────────────────────────────
+
+c_cpp:
+  - file: c_cpp/buffer_ops.c
+    line: 37
+    function: copy_username
+    cwe_id: CWE-120
+    vulnerability_type: buffer_overflow
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      strcpy with no bounds check copies untrusted src into fixed
+      64-byte dest buffer. Classic heap/stack overflow.
+
+  - file: c_cpp/buffer_ops.c
+    line: 82
+    function: read_input
+    cwe_id: CWE-120
+    vulnerability_type: buffer_overflow
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      gets() used ignoring size parameter — unbounded read into
+      buffer causes overflow. gets() is inherently unsafe.
+
+  - file: c_cpp/format_handler.c
+    line: 69
+    function: log_user_message
+    cwe_id: CWE-134
+    vulnerability_type: format_string
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      User-controlled msg passed directly as printf format argument.
+      Attacker can read/write stack memory via format specifiers.
+
+  - file: c_cpp/command_runner.c
+    line: 47
+    function: ping_host
+    cwe_id: CWE-78
+    vulnerability_type: command_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      User-supplied hostname interpolated via sprintf into shell
+      command string executed by system(). Allows ; and | injection.
+
+  - file: c_cpp/memory_manager.c
+    line: 114
+    function: process_buffer
+    cwe_id: CWE-416
+    vulnerability_type: use_after_free
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      buf->data dereferenced after free(buf). Classic use-after-free
+      enabling heap corruption or code execution.
+
+  - file: c_cpp/buffer_ops.c
+    line: 109
+    function: safe_copy
+    cwe_id: CWE-120
+    vulnerability_type: buffer_overflow
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      strncpy bounded by dest_size-1 with explicit null termination.
+      Proper bounds checking — SAST should recognize safe pattern.
+
+  - file: c_cpp/format_handler.c
+    line: 116
+    function: log_safe
+    cwe_id: CWE-134
+    vulnerability_type: format_string
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      printf called with explicit "%s" format specifier. msg is a
+      data argument, not a format string.
+
+  - file: c_cpp/command_runner.c
+    line: 98
+    function: check_disk_space
+    cwe_id: CWE-78
+    vulnerability_type: command_injection
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      system() called with hardcoded string literal "df -h /tmp".
+      No user input in data flow — requires taint analysis to
+      confirm the command string is constant.
+
+  - file: c_cpp/memory_manager.c
+    line: 157
+    function: resize_buffer
+    cwe_id: CWE-416
+    vulnerability_type: use_after_free
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      realloc result checked before use; buf updated to new_buf
+      only on success path. Requires control-flow graph analysis
+      to verify no dangling pointer dereference.
+
+  - file: c_cpp/buffer_ops.c
+    line: 138
+    function: copy_bounded
+    cwe_id: CWE-120
+    vulnerability_type: buffer_overflow
+    classification: false_positive
+    fp_tier: adversarial
+    expected_resolution: llm
+    description: >
+      strcpy used (triggers all SAST heuristics) but preceded by
+      assert(strlen(src) < DEST_CAPACITY). The assertion guarantees
+      source fits in destination. Requires semantic reasoning about
+      the pre-condition to classify as safe.
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  GO — HTTP handlers + database operations
+#  5 true positives, 5 false positives
+# ─────────────────────────────────────────────────────────────────────────────
+
+go:
+  - file: go/db.go
+    line: 24
+    function: SearchUsers
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      String concatenation builds SQL query with unsanitized
+      user-supplied name parameter.
+
+  - file: go/db.go
+    line: 39
+    function: DeleteUser
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      fmt.Sprintf interpolates user-supplied id directly into
+      DELETE query without parameterization.
+
+  - file: go/handlers.go
+    line: 26
+    function: HandlePing
+    cwe_id: CWE-78
+    vulnerability_type: command_injection
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      User-supplied hostname concatenated into "sh -c" shell
+      command string via exec.Command.
+
+  - file: go/handlers.go
+    line: 52
+    function: HandleLookup
+    cwe_id: CWE-78
+    vulnerability_type: command_injection
+    classification: true_positive
+    expected_resolution: graph
+    description: >
+      User-supplied domain passed as argument to nslookup. Appears
+      safe as separate args, but nslookup allows argument injection
+      on some platforms. Requires deeper analysis.
+
+  - file: go/fileserver.go
+    line: 31
+    function: HandleDownload
+    cwe_id: CWE-22
+    vulnerability_type: path_traversal
+    classification: true_positive
+    expected_resolution: sast
+    description: >
+      filepath.Join with unsanitized user input from query parameter
+      allows directory traversal via ../../ sequences.
+
+  - file: go/db.go
+    line: 54
+    function: GetUserByID
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      Parameterized query with $1 placeholder. No injection
+      possible — SAST should recognize safe pattern.
+
+  - file: go/handlers.go
+    line: 69
+    function: HandleHealth
+    cwe_id: CWE-78
+    vulnerability_type: command_injection
+    classification: false_positive
+    fp_tier: basic
+    expected_resolution: sast
+    description: >
+      exec.Command with hardcoded "uptime" binary. No user input
+      involved — SAST should verify no tainted data flows.
+
+  - file: go/fileserver.go
+    line: 60
+    function: HandleAvatar
+    cwe_id: CWE-22
+    vulnerability_type: path_traversal
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      filepath.Join triggers SAST, but filepath.Clean +
+      strings.HasPrefix guard prevents traversal. Requires
+      control-flow analysis to verify validation.
+
+  - file: go/db.go
+    line: 69
+    function: GetUsersByStatus
+    cwe_id: CWE-89
+    vulnerability_type: sql_injection
+    classification: false_positive
+    fp_tier: contextual
+    expected_resolution: graph
+    description: >
+      fmt.Sprintf in SQL triggers SAST, but status is validated
+      against a fixed allowlist map before query construction.
+      Requires data-flow analysis to trace the validation.
+
+  - file: go/handlers.go
+    line: 116
+    function: HandleConvert
+    cwe_id: CWE-78
+    vulnerability_type: command_injection
+    classification: false_positive
+    fp_tier: adversarial
+    expected_resolution: llm
+    description: >
+      exec.Command invoked near user upload handler. SAST and graph
+      see taint from request, but actual command arguments are
+      UUID-generated temp file paths with no user-controlled content.
+      Requires semantic understanding of the path generation logic.
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  SUMMARY
+# ─────────────────────────────────────────────────────────────────────────────
+#
+#  Total findings:           56
+#  True positives:           28
+#  False positives:          28
+#
+#  FP by tier:
+#    Basic (SAST resolves):  10
+#    Contextual (Graph):      9
+#    Adversarial (LLM):       9
+#
+#  Languages:                5 (Python, JavaScript, Java, C/C++, Go)
+#  CWEs covered:             12 (CWE-22, 78, 79, 89, 90, 94, 120, 134,
+#                                 416, 502, 611, 798, 1321)
+#
+#  Expected cascade resolution:
+#    Stage 1 (SAST):         38 findings (28 TP + 10 basic FP)
+#    Stage 2 (Graph):        10 findings (1 TP + 9 contextual FP)
+#    Stage 3 (LLM):           8 findings (9 adversarial FP - confirmed safe)
+# =============================================================================

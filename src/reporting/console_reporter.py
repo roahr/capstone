@@ -105,16 +105,19 @@ class ConsoleReporter:
             table.add_column("Location", width=35)
             table.add_column("Message", width=45)
             table.add_column("Score", width=8, justify="right")
+            table.add_column("CVSS", style="bold", justify="center", width=6)
             table.add_column("Stage", width=8)
 
             for f in tier_findings:
                 sev_style = SEVERITY_COLORS.get(f.severity, "")
+                cvss_style = "bold red" if f.cvss_severity in ("critical", "high") else ("yellow" if f.cvss_severity == "medium" else "cyan")
                 table.add_row(
                     Text(f.severity.value.upper(), style=sev_style),
                     f.cwe_id,
                     f.location.display,
                     f.sast_message[:45],
                     f"{f.fused_score:.2f}",
+                    Text(f"{f.cvss_base_score:.1f}", style=cvss_style),
                     f.stage_resolved.value,
                 )
 

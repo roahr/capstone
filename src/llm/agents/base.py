@@ -78,6 +78,21 @@ def _cwe_to_category(cwe_id: str) -> str:
     return _CWE_CATEGORY_MAP.get(normalised, "default")
 
 
+def _extract_api_error(exc: Exception) -> str:
+    """Extract a concise, user-friendly message from an API exception.
+
+    Google API exceptions embed protobuf error details that create
+    multi-line noise.  This pulls out just the human-readable part.
+    """
+    raw = str(exc)
+    bracket = raw.find(" [")
+    if bracket > 0:
+        return raw[:bracket].strip()
+    if len(raw) > 120:
+        return raw[:120].rstrip() + "..."
+    return raw
+
+
 class BaseSecurityAgent(ABC):
     """
     Abstract base class for SEC-C LLM security agents.
@@ -186,12 +201,8 @@ class BaseSecurityAgent(ABC):
         """
         ctx = context or {}
 
-        # Enrich context with RAG if available
-        if self.rag:
-            rag_results = await self._query_rag(finding)
-            ctx["rag_context"] = rag_results
-
-        # Build prompt
+        # Build prompt (RAG context is injected by ConsensusEngine before
+        # calling analyze, so agents do not query RAG themselves)
         prompt = self.build_prompt(finding, ctx)
 
         logger.debug(f"[{self.role}] Sending prompt ({len(prompt)} chars) to Gemini")
@@ -205,12 +216,14 @@ class BaseSecurityAgent(ABC):
             )
 
             verdict = self.parse_response(response)
-            logger.info(f"[{self.role}] Analysis complete for {finding.cwe_id} at {finding.location.display}")
+            logger.debug("[%s] Analysis complete: %s", self.role, finding.cwe_id)
             return verdict
 
         except Exception as e:
-            logger.error(f"[{self.role}] Analysis failed: {e}")
+            clean_msg = _extract_api_error(e)
+            logger.warning("[%s] Analysis failed: %s", self.role, clean_msg)
             return self._default_verdict()
+
 
     # ------------------------------------------------------------------
     # Jinja2 template loading

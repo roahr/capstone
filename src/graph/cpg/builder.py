@@ -16,6 +16,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Final
@@ -115,15 +116,48 @@ class JoernCPGBuilder:
 
         Args:
             joern_path: Explicit path to the ``joern`` executable.  If not
-                provided, the builder searches ``$PATH`` automatically.
+                provided, the builder searches ``$PATH`` and known install dirs.
         """
-        self.joern_path: str | None = joern_path or shutil.which("joern")
+        self.joern_path: str | None = joern_path or self._find_joern()
+        # On Windows, use .bat wrappers instead of shell scripts
+        self._use_bat = (
+            sys.platform == "win32" and self.joern_path is not None
+            and Path(self.joern_path).parent.joinpath("joern-parse.bat").exists()
+        )
         if self.joern_path is None:
             logger.warning(
                 "Joern executable not found on PATH. "
                 "CPG generation will fall back to empty stub graphs. "
                 "Install Joern from https://joern.io to enable full CPG analysis."
             )
+        else:
+            logger.info("Joern found: %s (bat=%s)", self.joern_path, self._use_bat)
+
+    @staticmethod
+    def _find_joern() -> str | None:
+        """Search for Joern binary in PATH and common install locations."""
+        # Check PATH first
+        for name in ("joern", "joern-parse", "joern-cli"):
+            found = shutil.which(name)
+            if found:
+                return str(Path(found).parent)
+
+        # Check common install directories
+        home = Path.home()
+        candidates = [
+            home / ".sec-c" / "joern" / "joern-cli" / "bin",
+            home / ".sec-c" / "joern" / "bin",
+            Path("C:/joern/joern-cli/bin"),
+            Path("/opt/joern/joern-cli/bin"),
+            Path("/usr/local/bin"),
+        ]
+        for candidate in candidates:
+            parse_bin = candidate / "joern-parse"
+            parse_bat = candidate / "joern-parse.bat"
+            if parse_bin.exists() or parse_bat.exists():
+                return str(candidate)
+
+        return None
 
     # ------------------------------------------------------------------
     # Public API
@@ -216,8 +250,17 @@ class JoernCPGBuilder:
     # Internal: Joern invocation
     # ------------------------------------------------------------------
 
+    def _get_joern_cmd(self, tool_name: str) -> str:
+        """Get the correct Joern command (shell script or .bat) for this platform."""
+        if self._use_bat:
+            return str(Path(self.joern_path) / f"{tool_name}.bat")  # type: ignore[arg-type]
+        return str(Path(self.joern_path) / tool_name)  # type: ignore[arg-type]
+
     def _build_with_joern(self, source_path: str, language: str) -> nx.DiGraph:
         """Invoke Joern CLI to build and export the CPG, then parse it.
+
+        Uses the two-step approach (joern-parse + joern-export) which works
+        reliably on both Windows (.bat) and Unix (shell scripts).
 
         Args:
             source_path: Path to source code.
@@ -226,52 +269,102 @@ class JoernCPGBuilder:
         Returns:
             Parsed ``nx.DiGraph``.
         """
+        joern_lang = _JOERN_LANGUAGE_MAP.get(language, language)
+
         with tempfile.TemporaryDirectory(prefix="secc_cpg_") as tmpdir:
-            graphml_path = os.path.join(tmpdir, "cpg.graphml")
-            script_path = os.path.join(tmpdir, "export_cpg.sc")
+            cpg_path = os.path.join(tmpdir, "cpg.bin")
+            export_dir = os.path.join(tmpdir, "export")
 
-            # Write the Joern export script.
-            with open(script_path, "w", encoding="utf-8") as fh:
-                fh.write(_JOERN_EXPORT_SCRIPT)
-
-            cmd = [
-                self.joern_path,  # type: ignore[list-item]
-                "--script",
-                script_path,
-                "--param",
-                f"inputPath={source_path}",
-                "--param",
-                f"outputPath={graphml_path}",
+            # Step 1: joern-parse -- generate CPG binary
+            parse_cmd = [
+                self._get_joern_cmd("joern-parse"),
+                "--language", joern_lang,
+                "-o", cpg_path,
+                str(Path(source_path).resolve()),
             ]
 
-            logger.info("Running Joern: %s", " ".join(cmd))
+            logger.info("Joern parse: %s -> %s", source_path, cpg_path)
             try:
                 result = subprocess.run(
-                    cmd,
+                    parse_cmd,
                     capture_output=True,
                     text=True,
                     timeout=300,
                     check=False,
                 )
             except subprocess.TimeoutExpired:
-                logger.error("Joern timed out after 300 s for %s", source_path)
+                logger.error("Joern parse timed out for %s", source_path)
                 return self._build_stub_graph(source_path, language)
 
             if result.returncode != 0:
                 logger.error(
-                    "Joern failed (rc=%d) for %s:\nstdout: %s\nstderr: %s",
-                    result.returncode,
-                    source_path,
-                    result.stdout,
-                    result.stderr,
+                    "Joern parse failed (rc=%d) for %s:\n%s",
+                    result.returncode, source_path,
+                    (result.stderr or result.stdout)[:500],
                 )
                 return self._build_stub_graph(source_path, language)
 
-            if not os.path.isfile(graphml_path):
-                logger.error("Joern did not produce a GraphML file at %s", graphml_path)
+            if not os.path.exists(cpg_path):
+                logger.error("Joern did not produce CPG at %s", cpg_path)
                 return self._build_stub_graph(source_path, language)
 
-            return self._parse_graphml(graphml_path)
+            # Step 2: joern-export -- export to GraphML
+            export_cmd = [
+                self._get_joern_cmd("joern-export"),
+                "--repr", "cpg",
+                "--format", "graphml",
+                "-o", export_dir,
+                cpg_path,
+            ]
+
+            logger.info("Joern export: %s -> %s", cpg_path, export_dir)
+            try:
+                result = subprocess.run(
+                    export_cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                logger.error("Joern export timed out for %s", source_path)
+                return self._build_stub_graph(source_path, language)
+
+            if result.returncode != 0:
+                logger.error(
+                    "Joern export failed (rc=%d):\n%s",
+                    result.returncode,
+                    (result.stderr or result.stdout)[:500],
+                )
+                return self._build_stub_graph(source_path, language)
+
+            # Find exported GraphML files -- Joern creates subdirs with export.xml inside
+            graphml_files = [
+                f for f in Path(export_dir).rglob("*.xml")
+                if f.is_file() and f.stat().st_size > 0
+            ]
+            if not graphml_files:
+                logger.error("Joern export produced no GraphML files in %s", export_dir)
+                return self._build_stub_graph(source_path, language)
+
+            # Parse all exported graphs and merge into one
+            merged = nx.DiGraph()
+            for gml_file in graphml_files:
+                try:
+                    sub_graph = self._parse_graphml(str(gml_file))
+                    merged = nx.compose(merged, sub_graph)
+                except Exception as e:
+                    logger.warning("Failed to parse %s: %s", gml_file, e)
+
+            if merged.number_of_nodes() == 0:
+                logger.warning("Merged CPG is empty for %s", source_path)
+                return self._build_stub_graph(source_path, language)
+
+            logger.info(
+                "CPG built: %d nodes, %d edges for %s",
+                merged.number_of_nodes(), merged.number_of_edges(), source_path,
+            )
+            return merged
 
     def _export_with_joern(
         self, source_path: str, output_path: str, format: str

@@ -20,7 +20,7 @@ dependencies = [
     "networkx>=3.0",
 
     # LLM Integration
-    "google-generativeai>=0.8",
+    "google-genai>=1.0",
     "faiss-cpu>=1.7",
     "rank-bm25>=0.2",
     "jinja2>=3.0",

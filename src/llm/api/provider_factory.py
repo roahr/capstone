@@ -76,7 +76,7 @@ def create_llm_client(config: dict[str, Any] | None = None) -> BaseLLMClient | N
         )
         return None
 
-    logger.info(
+    logger.debug(
         "LLM provider: %s (%s)",
         provider, provider_info["description"],
     )

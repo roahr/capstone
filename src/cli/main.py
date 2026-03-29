@@ -22,7 +22,6 @@ import asyncio
 import logging
 import os
 import sys
-import warnings
 from pathlib import Path
 from typing import Optional
 
@@ -33,8 +32,6 @@ from rich.console import Console
 from src.cli.banner import print_banner, print_scan_start
 from src.sast.sarif.schema import Language
 
-# Suppress deprecated google.generativeai FutureWarning
-warnings.filterwarnings("ignore", category=FutureWarning, module="google.generativeai")
 
 
 def _load_dotenv() -> None:
@@ -67,13 +64,27 @@ console = Console()
 
 
 def setup_logging(verbose: bool = False) -> None:
-    """Configure logging."""
-    level = logging.DEBUG if verbose else logging.INFO
+    """Configure logging.
+
+    In normal mode, only WARNING+ from LLM/RAG modules is shown to keep
+    the terminal clean.  ``--verbose`` unlocks DEBUG across the board.
+    """
+    root_level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
-        level=level,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        level=root_level,
+        format="%(asctime)s [%(levelname)s] %(message)s",
         datefmt="%H:%M:%S",
     )
+
+    if not verbose:
+        # Silence chatty LLM internals in normal mode — the ScanDisplay
+        # handles user-facing output for Stage 3.
+        for quiet_mod in (
+            "src.llm", "src.llm.api", "src.llm.agents",
+            "src.llm.consensus", "src.llm.rag",
+            "httpx", "httpcore",
+        ):
+            logging.getLogger(quiet_mod).setLevel(logging.WARNING)
 
 
 def load_config(config_path: str | None = None) -> dict:
@@ -333,6 +344,36 @@ def _init_modules(orchestrator, config: dict, max_stage: str) -> None:
         cwe_weights_path=cwe_weights_path if Path(cwe_weights_path).exists() else None,
     )
     orchestrator.set_score_fuser(fuser)
+
+    # Graph stage (if model is trained)
+    if max_stage in ("graph", "llm"):
+        try:
+            graph_config = config.get("graph", {})
+            model_path = Path(
+                graph_config.get("gnn", {}).get(
+                    "model_path", "data/models/mini_gat.pt"
+                )
+            )
+            if model_path.exists():
+                from src.graph.gnn.graph_validator import GraphValidator
+
+                validator = GraphValidator(config=graph_config)
+                orchestrator.set_graph_validator(validator)
+                logging.getLogger(__name__).info(
+                    "Graph validator loaded: %s", model_path
+                )
+            else:
+                logging.getLogger(__name__).info(
+                    "GNN model not found -- graph stage skipped"
+                )
+        except ImportError:
+            logging.getLogger(__name__).info(
+                "GNN dependencies not installed -- graph stage skipped"
+            )
+        except Exception as e:
+            logging.getLogger(__name__).warning(
+                "Graph validator init failed: %s", e
+            )
 
     # LLM stage -- uses provider factory to select Gemini or Groq
     if max_stage == "llm":

@@ -430,54 +430,39 @@ class ScanDisplay:
         loc = finding.location.display
 
         cwe_label = f"{cwe} {cwe_name}".strip()
-        self._task(f"Finding {index}/{total}: {cwe_label} at {loc}")
+        self._task(f"Finding {index}/{total}: {cwe_label}")
+        self._detail(f"  Location : {loc}")
 
-        # -- Attacker (Red Team) --
-        expl_str = "YES" if attacker_verdict.exploitable else "NO"
-        expl_style = "bold red" if attacker_verdict.exploitable else "green"
-        self._detail(f"[{expl_style}]\\[Attacker] Exploitable: {expl_str}[/{expl_style}]")
+        # -- Compact Attacker / Defender summary --
+        atk_expl = attacker_verdict.exploitable
+        atk_conf = attacker_verdict.confidence
+        def_cov = defender_verdict.defense_coverage_score
+        def_feas = defender_verdict.path_feasible
 
-        if attacker_verdict.exploitable and attacker_verdict.payload:
-            self._detail(f"           Payload: {attacker_verdict.payload}")
-        if not attacker_verdict.exploitable and attacker_verdict.blocking_factors:
-            blocking = "; ".join(attacker_verdict.blocking_factors)
-            self._detail(f"           Blocking: {blocking}")
+        atk_str = f"[bold red]EXPLOITABLE[/bold red] ({atk_conf:.0%})" if atk_expl else f"[green]NOT EXPLOITABLE[/green] ({atk_conf:.0%})"
+        def_str = f"coverage {def_cov:.0%}, path {'feasible' if def_feas else 'infeasible'}"
 
-        self._detail(f"           Confidence: {attacker_verdict.confidence:.2f}")
+        self._detail(f"  Attacker : {atk_str}")
+        self._detail(f"  Defender : [cyan]{def_str}[/cyan]")
 
-        # -- Defender (Blue Team) --
-        self._detail(
-            f"[cyan]\\[Defender] Coverage: {defender_verdict.defense_coverage_score:.2f}[/cyan]"
-        )
-
-        sanitizer_names: list[str] = []
-        for s in defender_verdict.sanitizers_found:
-            name = s.get("name", s.get("function", str(s)))
-            sanitizer_names.append(name)
-        sanitizers_str = ", ".join(sanitizer_names) if sanitizer_names else "none found"
-        self._detail(f"           Sanitizers: {sanitizers_str}")
-
-        if defender_verdict.framework_protections:
-            fw = ", ".join(defender_verdict.framework_protections)
-            self._detail(f"           Framework: {fw}")
-
-        path_str = "YES" if defender_verdict.path_feasible else "NO"
-        self._detail(f"           Path feasible: {path_str}")
-
-        # -- Consensus --
+        # -- Consensus verdict (the main takeaway) --
         if consensus is not None:
             verdict_val = consensus.consensus_verdict.value.upper()
             conf = consensus.consensus_confidence
             verdict_style = _VERDICT_STYLES.get(consensus.consensus_verdict, "")
 
             if consensus.consensus_verdict in (Verdict.CONFIRMED, Verdict.LIKELY):
-                label = f"CONFIRMED (fused score: {conf:.2f})"
+                label = f"{verdict_val} (score: {conf:.2f})"
             elif consensus.consensus_verdict == Verdict.SAFE:
-                label = f"SAFE -- false positive filtered (fused score: {conf:.2f})"
+                label = f"SAFE -- false positive (score: {conf:.2f})"
             else:
-                label = f"{verdict_val} (fused score: {conf:.2f})"
+                label = f"{verdict_val} (score: {conf:.2f})"
 
-            self._detail(f"[{verdict_style}]\\[Verdict]  {label}[/{verdict_style}]")
+            self._detail(f"  [{verdict_style}]Verdict  : {label}[/{verdict_style}]")
+
+            if hasattr(consensus, 'cvss_base_score') and consensus.cvss_base_score > 0:
+                cvss_style = "bold red" if consensus.cvss_severity in ("critical", "high") else "yellow"
+                self._detail(f"  [{cvss_style}]CVSS     : {consensus.cvss_base_score:.1f} ({consensus.cvss_severity.upper()}) {consensus.cvss_vector}[/{cvss_style}]")
         self._blank()
 
     # ------------------------------------------------------------------

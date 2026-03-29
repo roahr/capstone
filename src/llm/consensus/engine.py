@@ -124,9 +124,9 @@ class ConsensusEngine:
         """
         ctx = dict(context) if context else {}
 
-        logger.info(
-            f"Running dual-agent validation for {finding.cwe_id} "
-            f"at {finding.location.display}"
+        logger.debug(
+            "Dual-agent validation: %s at %s",
+            finding.cwe_id, finding.location.display,
         )
 
         # ---- RAG enrichment (engine-level) ----
@@ -150,6 +150,25 @@ class ConsensusEngine:
             consensus_verdict, consensus_confidence
         )
 
+        # Compute CVSS from agent sub-scores
+        from src.llm.consensus.cvss import compute_cvss_base_score
+
+        cvss_score, cvss_vector, cvss_severity = compute_cvss_base_score(
+            attack_vector=attacker_verdict.attack_vector,
+            attack_complexity=attacker_verdict.attack_complexity,
+            privileges_required=attacker_verdict.privileges_required,
+            user_interaction=attacker_verdict.user_interaction,
+            scope=defender_verdict.scope,
+            confidentiality=defender_verdict.confidentiality_impact,
+            integrity=defender_verdict.integrity_impact,
+            availability=defender_verdict.availability_impact,
+        )
+
+        # Build evidence narrative
+        evidence_narrative = self._build_evidence_narrative(
+            finding, attacker_verdict, defender_verdict, cvss_score, cvss_severity
+        )
+
         # Attach results to finding
         model_name = (
             self.client.model_pro if self.attacker.use_pro
@@ -162,15 +181,22 @@ class ConsensusEngine:
             consensus_confidence=consensus_confidence,
             model_used=model_name,
             nl_explanation=explanation,
+            cvss_base_score=cvss_score,
+            cvss_vector=cvss_vector,
+            cvss_severity=cvss_severity,
+            evidence_narrative=evidence_narrative,
         )
 
-        # Update finding verdict
+        # Update finding verdict and CVSS
         finding.verdict = consensus_verdict
+        finding.cvss_base_score = cvss_score
+        finding.cvss_vector = cvss_vector
+        finding.cvss_severity = cvss_severity
 
-        logger.info(
-            f"Consensus: {consensus_verdict.value} "
-            f"(confidence: {consensus_confidence:.2f}) "
-            f"for {finding.cwe_id} at {finding.location.display}"
+        logger.debug(
+            "Consensus: %s (confidence: %.2f) for %s at %s",
+            consensus_verdict.value, consensus_confidence,
+            finding.cwe_id, finding.location.display,
         )
 
         return finding
@@ -217,10 +243,9 @@ class ConsensusEngine:
                 chunk_results = await self._validate_batch_chunk(chunk, context)
                 results.extend(chunk_results)
             except Exception as e:
-                logger.warning(
-                    "Batch validation failed for chunk of %d findings, "
-                    "falling back to individual validation: %s",
-                    len(chunk), e,
+                logger.debug(
+                    "Batch validation failed for %d findings, using individual: %s",
+                    len(chunk), str(e)[:80],
                 )
                 for finding in chunk:
                     result = await self.validate(finding, context)
@@ -563,3 +588,46 @@ class ConsensusEngine:
         ])
 
         return "\n".join(parts)
+
+    def _build_evidence_narrative(
+        self,
+        finding: Finding,
+        attacker: AttackerVerdict,
+        defender: DefenderVerdict,
+        cvss_score: float,
+        cvss_severity: str,
+    ) -> str:
+        """Build a plain-language narrative explaining the finding for stakeholders."""
+        cwe = f"{finding.cwe_id} ({finding.cwe_name})" if finding.cwe_name else finding.cwe_id
+        location = finding.location.display
+
+        # Build from attacker/defender analysis
+        parts = []
+
+        if attacker.exploitable:
+            av_desc = {"network": "from the network", "adjacent": "from an adjacent network", "local": "locally", "physical": "with physical access"}.get(attacker.attack_vector, "")
+            pr_desc = {"none": "without authentication", "low": "with low privileges", "high": "with high privileges"}.get(attacker.privileges_required, "")
+            parts.append(f"This {finding.cwe_name or cwe} vulnerability at {location} is exploitable {av_desc} {pr_desc}.")
+        else:
+            parts.append(f"This potential {finding.cwe_name or cwe} at {location} was not found to be exploitable.")
+
+        # Evidence from attacker
+        if attacker.evidence_steps:
+            key_evidence = attacker.evidence_steps[0] if attacker.evidence_steps else ""
+            if key_evidence:
+                parts.append(key_evidence + ".")
+
+        # Payload info
+        if attacker.exploitable and attacker.payload:
+            parts.append(f"A working exploit payload was constructed.")
+
+        # Defender findings
+        if defender.defense_evidence:
+            parts.append(defender.defense_evidence[0] + ".")
+        elif defender.defense_coverage_score < 0.2:
+            parts.append("No effective defensive controls were identified in the code path.")
+
+        # CVSS context
+        parts.append(f"CVSS v3.1 base score: {cvss_score} ({cvss_severity.upper()}).")
+
+        return " ".join(parts)

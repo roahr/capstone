@@ -246,6 +246,10 @@ class SARIFReporter:
             }
             props["sec-c/model_used"] = lv.model_used
 
+        props["sec-c/cvss_base_score"] = finding.cvss_base_score
+        props["sec-c/cvss_vector"] = finding.cvss_vector
+        props["sec-c/cvss_severity"] = finding.cvss_severity
+
         if finding.nl_explanation:
             props["sec-c/nl_explanation"] = finding.nl_explanation[:2000]
 

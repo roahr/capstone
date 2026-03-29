@@ -133,7 +133,12 @@ Respond with this exact JSON structure:
     "confidence_justification": "why this coverage score",
     "assumptions": ["assumption 1"],
     "counterexamples": ["condition 1"],
-    "reasoning": "detailed explanation of defensive posture"
+    "reasoning": "detailed explanation of defensive posture",
+    "scope": "unchanged|changed",
+    "confidentiality_impact": "none|low|high",
+    "integrity_impact": "none|low|high",
+    "availability_impact": "none|low|high",
+    "defense_evidence": ["evidence 1", "evidence 2"]
 }}"""
 
         return prompt
@@ -151,6 +156,11 @@ Respond with this exact JSON structure:
                 max(float(response.get("defense_coverage_score", 0.0)), 0.0), 1.0
             ),
             reasoning=response.get("reasoning", ""),
+            scope=response.get("scope", "unchanged"),
+            confidentiality_impact=response.get("confidentiality_impact", "none"),
+            integrity_impact=response.get("integrity_impact", "none"),
+            availability_impact=response.get("availability_impact", "none"),
+            defense_evidence=response.get("defense_evidence", []),
         )
 
     def _default_verdict(self) -> DefenderVerdict:

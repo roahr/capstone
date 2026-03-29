@@ -137,7 +137,12 @@ Respond with this exact JSON structure:
     "confidence_justification": "why this confidence level",
     "assumptions": ["assumption 1", "assumption 2"],
     "counterexamples": ["condition 1", "condition 2"],
-    "reasoning": "detailed explanation"
+    "reasoning": "detailed explanation",
+    "attack_vector": "network|adjacent|local|physical",
+    "attack_complexity": "low|high",
+    "privileges_required": "none|low|high",
+    "user_interaction": "none|required",
+    "evidence_steps": ["step 1: how the input enters", "step 2: how it flows", "step 3: impact"]
 }}"""
 
         return prompt
@@ -153,6 +158,11 @@ Respond with this exact JSON structure:
             blocking_factors=response.get("blocking_factors", []),
             confidence=min(max(float(response.get("confidence", 0.0)), 0.0), 1.0),
             reasoning=response.get("reasoning", ""),
+            attack_vector=response.get("attack_vector", "network"),
+            attack_complexity=response.get("attack_complexity", "low"),
+            privileges_required=response.get("privileges_required", "none"),
+            user_interaction=response.get("user_interaction", "none"),
+            evidence_steps=response.get("evidence_steps", []),
         )
 
     def _default_verdict(self) -> AttackerVerdict:

@@ -191,12 +191,19 @@ class PipelineOrchestrator:
 
         # If max_stage is sast, resolve ALL findings at SAST stage
         if max_stage == "sast":
+            from src.llm.consensus.cvss import compute_cvss_from_cwe_default
+
             for f in all_findings:
                 f.stage_resolved = StageResolved.SAST
                 if f.sast_confidence >= 0.8:
                     f.verdict = Verdict.CONFIRMED if f.sast_confidence >= 0.9 else Verdict.LIKELY
                 else:
                     f.verdict = Verdict.POTENTIAL
+                # Assign CWE-default CVSS for SAST-only findings
+                score, vector, severity = compute_cvss_from_cwe_default(f.cwe_id)
+                f.cvss_base_score = score
+                f.cvss_vector = vector
+                f.cvss_severity = severity
             self.stats.resolved_sast = len(all_findings)
             logger.info(f"SAST-only mode: all {len(all_findings)} findings resolved at Stage 1")
 
@@ -228,12 +235,19 @@ class PipelineOrchestrator:
         self.stats.escalated_to_graph = len(escalated_to_graph)
 
         # Mark resolved findings
+        from src.llm.consensus.cvss import compute_cvss_from_cwe_default
+
         for f in resolved_sast:
             f.stage_resolved = StageResolved.SAST
             if f.sast_confidence >= 0.8:
                 f.verdict = Verdict.CONFIRMED if f.sast_confidence >= 0.9 else Verdict.LIKELY
             else:
                 f.verdict = Verdict.POTENTIAL
+            # Assign CWE-default CVSS for SAST-resolved findings
+            score, vector, severity = compute_cvss_from_cwe_default(f.cwe_id)
+            f.cvss_base_score = score
+            f.cvss_vector = vector
+            f.cvss_severity = severity
 
         logger.info(
             f"SAST resolved {len(resolved_sast)}, "

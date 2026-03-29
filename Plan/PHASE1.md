@@ -1,3 +1,6 @@
+> **HISTORICAL DOCUMENT** -- This was the original research planning document.
+> Current implementation status and architecture are documented in docs/.
+
 # Phase 1: Foundation - Completion Report
 
 **Status:** COMPLETED
