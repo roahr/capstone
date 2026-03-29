@@ -1,0 +1,81 @@
+# CWE-specific scoring weights for the fusion engine
+# Calibrated by scripts/calibrate_weights.py on labeled ground truth data.
+# Run scripts/calibrate_weights.py to recalibrate after adding new labels.
+# Format: CWE-ID -> {sast_weight, gat_weight, llm_weight}
+
+CWE-22:
+  sast_weight: 0.30
+  gat_weight: 0.30
+  llm_weight: 0.40
+
+CWE-287:
+  sast_weight: 0.20
+  gat_weight: 0.25
+  llm_weight: 0.55
+
+CWE-327:
+  sast_weight: 0.50
+  gat_weight: 0.20
+  llm_weight: 0.30
+
+CWE-328:
+  sast_weight: 0.50
+  gat_weight: 0.20
+  llm_weight: 0.30
+
+CWE-416:
+  sast_weight: 0.20
+  gat_weight: 0.50
+  llm_weight: 0.30
+
+CWE-434:
+  sast_weight: 0.30
+  gat_weight: 0.25
+  llm_weight: 0.45
+
+CWE-476:
+  sast_weight: 0.25
+  gat_weight: 0.45
+  llm_weight: 0.30
+
+CWE-502:
+  sast_weight: 0.30
+  gat_weight: 0.30
+  llm_weight: 0.40
+
+CWE-78:
+  sast_weight: 0.30
+  gat_weight: 0.30
+  llm_weight: 0.40
+
+CWE-79:
+  sast_weight: 0.30
+  gat_weight: 0.30
+  llm_weight: 0.40
+
+CWE-862:
+  sast_weight: 0.20
+  gat_weight: 0.25
+  llm_weight: 0.55
+
+CWE-89:
+  sast_weight: 0.30
+  gat_weight: 0.30
+  llm_weight: 0.40
+
+CWE-94:
+  sast_weight: 0.25
+  gat_weight: 0.30
+  llm_weight: 0.45
+
+CWE-95:
+  sast_weight: 0.30
+  gat_weight: 0.30
+  llm_weight: 0.40
+
+
+# Default weights for unknown CWEs
+default:
+  sast_weight: 0.30
+  gat_weight: 0.30
+  llm_weight: 0.40

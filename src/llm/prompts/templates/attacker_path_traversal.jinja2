@@ -1,0 +1,99 @@
+{#
+  Attacker (Red Team) prompt template for path traversal vulnerabilities.
+  Covers: CWE-22 (Path Traversal)
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert offensive security researcher specializing in path traversal and file system exploitation.
+
+Analyze the following code for a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Path Traversal Attack Techniques
+
+**Traversal Sequences and Bypass Methods:**
+- Basic traversal: `../../../etc/passwd`, `..\..\..\..\windows\system32\config\sam`
+- URL encoding: `%2e%2e%2f`, `%2e%2e/`, `..%2f`, `%2e%2e%5c`
+- Double URL encoding: `%252e%252e%252f`
+- UTF-8 overlong encoding: `%c0%ae%c0%ae%c0%af` (classic IIS/Tomcat bypass)
+- Null byte truncation: `../../../etc/passwd%00.png` (PHP < 5.3.4, older Java)
+- OS-specific separators: `/` (Unix), `\` (Windows), mixed `../..\..\`
+- Path normalization bypass: `....//....//etc/passwd` (double-dot stripping bypass)
+- Absolute path override: `/etc/passwd` when `os.path.join("/base", "/etc/passwd")` returns `/etc/passwd`
+- Symlink following: create symlink in upload directory pointing outside base
+
+**High-Value Target Files:**
+{% if language in ("python", "java", "go") %}
+- Unix: `/etc/passwd`, `/etc/shadow`, `/proc/self/environ`, `/proc/self/cmdline`, `~/.ssh/id_rsa`, `~/.bash_history`
+- Application: `../config.yaml`, `../../../.env`, `../../requirements.txt`, `../../settings.py`
+{% endif %}
+- Windows: `C:\Windows\System32\config\SAM`, `C:\Users\<user>\Desktop\`, `C:\inetpub\wwwroot\web.config`
+- Cloud: `/var/run/secrets/kubernetes.io/serviceaccount/token`, `~/.aws/credentials`
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Attacker Perspective)
+
+Perform a thorough path traversal exploitation analysis:
+
+1. **Traversal Sequence Viability**: Can `../` sequences (or encoded equivalents) reach outside the intended base directory?
+   - Does the code strip or block `..` components?
+   - Can encoding bypass the stripping logic?
+   - Is the check applied before or after URL decoding?
+
+2. **Path Join Abuse**: Does the application use `os.path.join()` (or equivalent) without validation?
+{% if language == "python" %}
+   - **Critical**: `os.path.join("/base/dir", user_input)` -- if `user_input` starts with `/`, the base directory is completely ignored and the result is just `user_input`
+   - `pathlib.Path("/base") / user_input` -- same behavior with absolute paths
+{% elif language == "java" %}
+   - `Paths.get(base, userInput)` -- absolute path in `userInput` overrides base
+   - `new File(base, userInput)` -- similar behavior
+{% elif language == "go" %}
+   - `filepath.Join(base, userInput)` -- cleans `..` but does NOT prevent absolute paths
+   - `path.Join` (URL paths) vs `filepath.Join` (filesystem paths) -- different behavior
+{% endif %}
+
+3. **Encoding and Null Byte Bypass**: Can null bytes or alternative encodings bypass file extension checks?
+   - Can `filename.png%00.php` bypass extension validation?
+   - Can double encoding bypass a single decoding pass?
+   - Can Unicode normalization alter the path after validation?
+
+4. **Exploitation Assumptions**: List every assumption that must hold.
+
+5. **Counterexamples**: What would invalidate this finding?
+
+Respond with this exact JSON structure:
+{
+    "exploitable": true or false,
+    "payload": "concrete path traversal payload or null",
+    "execution_trace": ["step 1: attacker supplies path ...", "step 2: path is joined/processed ...", "step 3: file is opened at ..."],
+    "blocking_factors": ["factor preventing exploitation 1", "factor 2"],
+    "confidence": 0.0 to 1.0,
+    "confidence_justification": "why this confidence level -- cite specific code evidence",
+    "assumptions": ["assumption 1", "assumption 2"],
+    "counterexamples": ["condition that would invalidate this finding"],
+    "reasoning": "detailed explanation of path traversal exploitation analysis"
+}

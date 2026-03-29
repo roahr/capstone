@@ -1,0 +1,137 @@
+{#
+  Defender (Blue Team) prompt template for injection vulnerabilities.
+  Covers: CWE-78 (OS Command Injection), CWE-79 (XSS),
+          CWE-89 (SQL Injection), CWE-94 (Code Injection),
+          CWE-95 (Eval Injection)
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert defensive security engineer specializing in secure code review and injection prevention.
+
+Analyze the following code for defensive protections against a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Defender Perspective)
+
+Perform a thorough defensive analysis against {{ cwe_name }}. Evaluate each category below:
+
+### 1. Parameterization / Prepared Statements (SQL Injection)
+{% if cwe_id == "CWE-89" %}
+- **Critical check**: Is a parameterized query or prepared statement used? Look for:
+  - `cursor.execute(query, params)` with separate parameter tuple (Python)
+  - `?` or `$1` placeholders in SQL with bound parameters
+  - ORM query builders (SQLAlchemy, Django ORM, Hibernate) vs raw SQL
+  - Stored procedure calls with parameterized inputs
+- Is string formatting (`f""`, `.format()`, `%`, `+`) used to construct SQL? This is a strong indicator of vulnerability.
+- Are all user-controlled values parameterized, or only some?
+{% else %}
+- Not the primary defense for {{ cwe_name }}, but note any query parameterization present.
+{% endif %}
+
+### 2. Output Encoding (XSS)
+{% if cwe_id == "CWE-79" %}
+- **Critical check**: Is context-appropriate output encoding applied?
+  - HTML body: HTML entity encoding (`&lt;`, `&gt;`, `&amp;`, `&quot;`, `&#x27;`)
+  - HTML attributes: attribute encoding with quoting
+  - JavaScript context: JavaScript string escaping or JSON serialization
+  - URL context: URL encoding (`encodeURIComponent`)
+  - CSS context: CSS escaping
+- Does the template engine auto-escape by default?
+  - Jinja2: `autoescape=True` or `{% raw %}{% autoescape true %}{% endraw %}`
+  - Django: auto-escapes by default, check for `|safe` or `{% raw %}{% autoescape off %}{% endraw %}`
+  - React JSX: auto-escapes by default, check for `dangerouslySetInnerHTML`
+  - Angular: auto-escapes by default, check for `[innerHTML]` or `bypassSecurityTrust*`
+- Is `|safe`, `mark_safe()`, or `Markup()` used to bypass auto-escaping?
+{% else %}
+- Note any output encoding present even if not the primary defense for {{ cwe_name }}.
+{% endif %}
+
+### 3. Allowlist Validation (Command Injection)
+{% if cwe_id == "CWE-78" %}
+- **Critical check**: Is allowlist validation present for command arguments?
+  - Is input validated against a finite set of allowed values?
+  - Is `subprocess.run()` used with `shell=False` and argument list?
+  - Is `shlex.quote()` or equivalent used for shell escaping?
+  - Are there denylists (less effective) for dangerous characters (`;`, `|`, `&`, `` ` ``)?
+- Is the command constructed from a hardcoded template with only specific fields substituted?
+- Could an attacker inject additional arguments even with allowlist validation?
+{% else %}
+- Note any input allowlist/denylist validation present.
+{% endif %}
+
+### 4. Framework Auto-Escaping (Template Engines)
+- Does the framework provide automatic protection against {{ cwe_name }}?
+{% if cwe_id == "CWE-79" %}
+  - Modern template engines (Jinja2, Django, React, Vue, Angular) auto-escape by default
+  - Check if auto-escaping is explicitly disabled
+  - Check for raw HTML insertion APIs
+{% elif cwe_id == "CWE-89" %}
+  - ORMs (Django ORM, SQLAlchemy, Hibernate) parameterize by default
+  - Check for `.raw()`, `.extra()`, `text()`, or native SQL escape hatches
+{% elif cwe_id == "CWE-78" %}
+  - Web frameworks typically do not auto-protect against command injection
+  - Check for framework-level command execution wrappers
+{% elif cwe_id in ("CWE-94", "CWE-95") %}
+  - Sandboxed eval environments (Jinja2 sandbox, restricted Python)
+  - AST-based validation before execution
+{% endif %}
+
+### 5. WAF / CSP / Network-Level Protections
+- Are there Web Application Firewall rules that would catch injection payloads?
+{% if cwe_id == "CWE-79" %}
+- Is a Content Security Policy (CSP) header set?
+  - Does it block `unsafe-inline` and `unsafe-eval`?
+  - Is there a strict `script-src` directive?
+  - Are nonces or hashes used for inline scripts?
+{% endif %}
+- Are there rate-limiting or anomaly detection mechanisms?
+- Note: WAF/CSP are defense-in-depth; they should not be the sole protection.
+
+### 6. Path Feasibility
+- Is the taint path actually reachable at runtime?
+- Are there conditional guards, authentication checks, or error handlers that prevent reaching the sink?
+- Could the vulnerability only be triggered in specific deployment configurations?
+
+### 7. Counterexamples
+- What additional defenses, if present elsewhere in the codebase or infrastructure, would make this finding a false positive?
+- What assumptions does the SAST tool make that might not hold?
+
+Respond with this exact JSON structure:
+{
+    "sanitizers_found": [
+        {"function": "name", "effectiveness": 0.0 to 1.0, "description": "what it does and why it is/isn't sufficient"}
+    ],
+    "access_controls": ["control 1 with explanation", "control 2"],
+    "framework_protections": ["protection 1 with assessment of effectiveness"],
+    "path_feasible": true or false,
+    "defense_coverage_score": 0.0 to 1.0,
+    "confidence_justification": "why this coverage score -- cite specific code evidence",
+    "assumptions": ["assumption about the code/environment that affects this assessment"],
+    "counterexamples": ["condition that would change the defensive assessment"],
+    "reasoning": "detailed explanation of the defensive posture"
+}

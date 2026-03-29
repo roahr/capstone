@@ -1,0 +1,75 @@
+{#
+  Attacker (Red Team) default prompt template for unrecognized CWE types.
+  Generic fallback that applies structured vulnerability analysis.
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert offensive security researcher and penetration tester.
+
+Analyze the following code for a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Attacker Perspective)
+
+Perform a thorough exploitation analysis for {{ cwe_id }} ({{ cwe_name }}):
+
+1. **Vulnerability Understanding**: What is the specific weakness described by {{ cwe_id }}?
+   - What is the root cause of this vulnerability class?
+   - What is the typical attack vector?
+   - What is the potential impact (confidentiality, integrity, availability)?
+
+2. **Exploit Construction**: Can you construct a concrete exploit?
+   - What input values would trigger the vulnerability?
+   - Trace the data flow from source to sink.
+   - Are there any sanitizers, validators, or access controls in the path?
+   - Is the taint path actually reachable at runtime?
+
+3. **Framework and Language Context**: Does the {{ language }} ecosystem provide protections?
+   - Are there framework-level mitigations that might be active?
+   - Does the language have built-in safety features relevant to this CWE?
+   - Could runtime protections (ASLR, DEP, sandboxing) limit impact?
+
+4. **Exploitation Assumptions**: List every assumption that must hold for exploitation to succeed.
+
+5. **Counterexamples**: What conditions would invalidate this finding? What defensive measures, if present elsewhere in the codebase, would prevent exploitation?
+
+If the code IS exploitable, provide a concrete payload and execution trace.
+If the code is NOT exploitable, explain exactly what prevents exploitation.
+
+Respond with this exact JSON structure:
+{
+    "exploitable": true or false,
+    "payload": "concrete exploit payload or technique description, or null",
+    "execution_trace": ["step 1: ...", "step 2: ...", "step 3: ..."],
+    "blocking_factors": ["factor preventing exploitation 1", "factor 2"],
+    "confidence": 0.0 to 1.0,
+    "confidence_justification": "why this confidence level -- cite specific code evidence",
+    "assumptions": ["assumption 1 that must hold", "assumption 2"],
+    "counterexamples": ["condition that would invalidate this finding 1", "condition 2"],
+    "reasoning": "detailed explanation of exploitation analysis"
+}

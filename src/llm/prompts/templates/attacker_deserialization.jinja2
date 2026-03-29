@@ -1,0 +1,122 @@
+{#
+  Attacker (Red Team) prompt template for deserialization vulnerabilities.
+  Covers: CWE-502 (Deserialization of Untrusted Data)
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert offensive security researcher specializing in deserialization attacks and object injection vulnerabilities.
+
+Analyze the following code for a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Deserialization Attack Surface
+
+{% if language == "python" %}
+**Language: Python -- Known Dangerous Deserializers:**
+- `pickle.loads()` / `pickle.load()` -- Arbitrary code execution via `__reduce__`, `__reduce_ex__`, `__setstate__`
+- `yaml.load()` (without `Loader=SafeLoader`) -- Arbitrary code execution via `!!python/object/apply:` tags
+- `shelve.open()` -- Uses pickle internally
+- `marshal.loads()` -- Can execute arbitrary bytecode
+- `dill.loads()` -- Extended pickle, same risks
+
+**Known Gadget Chains (Python):**
+- `__reduce__` returning `(os.system, ('id',))` -- direct command execution
+- `__reduce__` returning `(subprocess.check_output, (['id'],))` -- command execution with output capture
+- `__reduce__` returning `(eval, ("__import__('os').popen('id').read()",))` -- eval-based execution
+- Nested `__reduce__` chains for sandbox evasion
+- `copyreg` dispatcher abuse for type confusion
+
+{% elif language == "java" %}
+**Language: Java -- Known Dangerous Deserializers:**
+- `ObjectInputStream.readObject()` -- Classic Java deserialization
+- `XMLDecoder.readObject()` -- XML-based deserialization
+- `XStream.fromXML()` -- XML serialization library
+- `SnakeYAML.load()` -- YAML deserialization
+
+**Known Gadget Chains (Java):**
+- Apache Commons Collections: `InvokerTransformer`, `ChainedTransformer`, `ConstantTransformer`
+- Spring Framework: `MethodInvokeTypeProvider`, `ObjectFactoryDelegatingInvocationHandler`
+- Apache Commons BeanUtils: `BeanComparator` chain
+- Hibernate: `AbstractTranslet` template injection
+- JDK built-in: `java.beans.EventHandler`, `Runtime.exec()`
+- C3P0: JNDI reference injection via `PoolBackedDataSource`
+- ROME: `ObjectBean` chain for RCE
+
+{% elif language in ("javascript", "typescript") %}
+**Language: JavaScript/TypeScript -- Known Dangerous Deserializers:**
+- `node-serialize` / `serialize-to-js` -- `unserialize()` with IIFE execution
+- `js-yaml.load()` (pre-4.0) -- Arbitrary code execution via custom types
+- `eval(JSON.parse(...))` patterns -- Indirect code execution
+
+**Known Gadget Chains (JS/TS):**
+- IIFE in serialized objects: `{"rce":"_$$ND_FUNC$$_function(){require('child_process').exec('id')}()"}`
+- Prototype pollution via deserialized `__proto__` properties
+- Constructor override attacks
+
+{% else %}
+**Language: {{ language }}**
+Identify the specific deserialization mechanism used and evaluate its safety properties.
+{% endif %}
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Attacker Perspective)
+
+Perform a thorough deserialization exploitation analysis:
+
+1. **Deserializer Identification**: Which deserializer is used? Is it inherently unsafe (pickle, Java ObjectInputStream, yaml.load without SafeLoader) or safe-by-default (JSON, yaml.safe_load)?
+
+2. **Data Source Analysis**: Can untrusted data reach the deserializer?
+   - Is the data source user-controlled (HTTP request body, file upload, URL parameter)?
+   - Is the data from an internal API, database, or cache (potentially trusted)?
+   - Could an attacker inject serialized data through an indirect path (SSRF, cache poisoning)?
+
+3. **Class Control**: Can the attacker control the class being instantiated?
+   - Does the serialization format allow specifying arbitrary types?
+   - Are there class allowlists or denylists enforced?
+   - Can the attacker influence which gadget classes are available on the classpath?
+
+4. **Gadget Chain Construction**: Can you construct a working gadget chain?
+   - What libraries are available in the application's dependency tree?
+   - Provide a concrete serialized payload that would achieve code execution.
+   - What is the minimum impact achievable (information disclosure, DoS, RCE)?
+
+5. **Exploitation Assumptions**: List every assumption that must hold for exploitation.
+
+6. **Counterexamples**: What would invalidate this finding?
+
+Respond with this exact JSON structure:
+{
+    "exploitable": true or false,
+    "payload": "concrete exploit payload (serialized bytes/string representation) or null",
+    "execution_trace": ["step 1: attacker crafts serialized payload with ...", "step 2: payload reaches deserializer at ...", "step 3: gadget chain triggers ..."],
+    "blocking_factors": ["factor preventing exploitation 1", "factor 2"],
+    "confidence": 0.0 to 1.0,
+    "confidence_justification": "why this confidence level -- cite specific code evidence",
+    "assumptions": ["assumption 1 that must hold", "assumption 2"],
+    "counterexamples": ["condition that would invalidate this finding"],
+    "reasoning": "detailed explanation of deserialization exploitation analysis"
+}

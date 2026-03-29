@@ -1,0 +1,77 @@
+[project]
+name = "sec-c"
+version = "2.0.0"
+description = "Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Sec-C Research Team"}]
+
+dependencies = [
+    # SAST Engine
+    "tree-sitter>=0.23",
+    "tree-sitter-python>=0.23",
+    "tree-sitter-javascript>=0.23",
+    "tree-sitter-java>=0.23",
+    "tree-sitter-c>=0.23",
+    "tree-sitter-go>=0.23",
+    "sarif-om>=1.0",
+
+    # Graph Analysis (core — torch already installed)
+    "networkx>=3.0",
+
+    # LLM Integration
+    "google-generativeai>=0.8",
+    "faiss-cpu>=1.7",
+    "rank-bm25>=0.2",
+    "jinja2>=3.0",
+
+    # Reporting & CLI
+    "typer>=0.9",
+    "rich>=13.0",
+    "prompt-toolkit>=3.0",
+    "pygments>=2.17",
+
+    # Configuration & Data
+    "pyyaml>=6.0",
+    "pydantic>=2.0",
+    "aiohttp>=3.9",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "pytest-asyncio>=0.23",
+    "ruff>=0.4",
+]
+gnn = [
+    # Install separately: pip install -e ".[gnn]"
+    "torch>=2.0",
+    "torch-geometric>=2.5",
+    "transformers>=4.30",
+    "torchcp>=0.2",
+]
+gpu = ["faiss-gpu"]
+
+[project.scripts]
+sec-c = "src.cli.main:app"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]

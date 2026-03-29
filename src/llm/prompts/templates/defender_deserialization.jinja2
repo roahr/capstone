@@ -1,0 +1,116 @@
+{#
+  Defender (Blue Team) prompt template for deserialization vulnerabilities.
+  Covers: CWE-502 (Deserialization of Untrusted Data)
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert defensive security engineer specializing in secure deserialization practices and data integrity verification.
+
+Analyze the following code for defensive protections against a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Defender Perspective)
+
+Perform a thorough defensive analysis against unsafe deserialization. Evaluate each category:
+
+### 1. Safe Serialization Format
+- **Critical check**: Is JSON or another safe format used instead of binary serialization?
+  - JSON (`json.loads`, `JSON.parse`) -- safe, no code execution possible
+  - Protocol Buffers / FlatBuffers / MessagePack -- safe, schema-defined
+  - XML (without external entities) -- generally safe for deserialization
+{% if language == "python" %}
+  - `yaml.safe_load()` -- safe (only basic types)
+  - `pickle.loads()` -- **UNSAFE**, arbitrary code execution
+  - `yaml.load()` without SafeLoader -- **UNSAFE**
+{% elif language == "java" %}
+  - Jackson / Gson -- safe by default (but check `enableDefaultTyping()` / `@JsonTypeInfo`)
+  - `ObjectInputStream` -- **UNSAFE** without filtering
+{% elif language in ("javascript", "typescript") %}
+  - `JSON.parse()` -- safe
+  - `node-serialize` -- **UNSAFE**
+{% endif %}
+
+### 2. Integrity Verification Before Deserialization
+- **Critical check**: Are HMAC signatures or digital signatures verified BEFORE deserialization?
+  - Is `hmac.compare_digest()` or equivalent used to validate integrity?
+  - Is the signing key stored securely (not hardcoded, not in version control)?
+  - Is the HMAC computed over the entire serialized payload?
+  - Are JWTs or signed cookies used with proper signature verification?
+  - Is verification timing-safe (constant-time comparison)?
+
+### 3. Class/Type Allowlist
+- Is there an explicit allowlist of classes that may be deserialized?
+{% if language == "java" %}
+  - Java: `ObjectInputFilter` (JEP 290), `ValidatingObjectInputStream` (Apache Commons IO)
+  - `serialInputFilter` JVM property or `ObjectInputStream.setObjectInputFilter()`
+  - Look-ahead deserialization pattern
+{% elif language == "python" %}
+  - Python: custom `Unpickler` with overridden `find_class()` method
+  - `RestrictedUnpickler` pattern
+{% endif %}
+- Is there a denylist? (Less effective than allowlists but still relevant)
+- Does the framework enforce type restrictions automatically?
+
+### 4. Data Source Trust Level
+- **Critical check**: Is the data source trusted?
+  - **Trusted sources**: Internal service-to-service communication over mTLS, local file written by the same application, database records written by trusted code
+  - **Untrusted sources**: User uploads, HTTP request bodies, URL parameters, external APIs, message queues with external publishers, cookies
+  - **Semi-trusted**: Internal cache (could be poisoned), database (SQL injection could modify records)
+- Is there network-level isolation between the data source and the application?
+- Could the data source be compromised by another vulnerability?
+
+### 5. Sandboxing and Isolation
+- Is deserialization performed in a sandboxed environment?
+  - Separate process with limited permissions
+  - Containerized or chrooted environment
+  - SecurityManager restrictions (Java, deprecated but still in use)
+  - seccomp/AppArmor/SELinux profiles
+
+### 6. Path Feasibility
+- Is the taint path actually reachable at runtime?
+- Are there authentication/authorization checks before the deserialization endpoint?
+- Could the vulnerability only be triggered in specific configurations?
+
+### 7. Counterexamples
+- What additional defenses would make this finding a false positive?
+- What assumptions does the SAST tool make that might not hold?
+
+Respond with this exact JSON structure:
+{
+    "sanitizers_found": [
+        {"function": "name", "effectiveness": 0.0 to 1.0, "description": "what it does and why it is/isn't sufficient"}
+    ],
+    "access_controls": ["control 1 with explanation", "control 2"],
+    "framework_protections": ["protection 1 with assessment"],
+    "path_feasible": true or false,
+    "defense_coverage_score": 0.0 to 1.0,
+    "confidence_justification": "why this coverage score -- cite specific code evidence",
+    "assumptions": ["assumption about the code/environment"],
+    "counterexamples": ["condition that would change the assessment"],
+    "reasoning": "detailed explanation of the defensive posture against deserialization attacks"
+}

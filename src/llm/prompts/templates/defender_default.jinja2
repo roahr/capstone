@@ -1,0 +1,94 @@
+{#
+  Defender (Blue Team) default prompt template for unrecognized CWE types.
+  Generic fallback that applies structured defensive analysis.
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert defensive security engineer and secure code reviewer.
+
+Analyze the following code for defensive protections against a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Defender Perspective)
+
+Perform a thorough defensive analysis against {{ cwe_id }} ({{ cwe_name }}):
+
+### 1. Input Validation
+- Identify ALL input validation present in the code path.
+- Type checking, length limits, regex patterns, allowlist validation.
+- Are validators applied to ALL user inputs on this path?
+- Is validation performed on the server side (not just client side)?
+
+### 2. Sanitization and Encoding
+- Identify ALL sanitization or encoding functions in the taint path.
+- Are sanitizers effective against this specific CWE?
+- Is sanitization applied at the correct point (before the dangerous operation)?
+- Could the sanitization be bypassed with encoding tricks or edge cases?
+
+### 3. Access Controls
+- Identify ALL authorization and access control checks.
+- Authentication requirements, role checks, permission guards.
+- Are they enforced before the dangerous operation?
+- Is the principle of least privilege applied?
+
+### 4. Framework Protections
+- Does the {{ language }} framework provide automatic protections against {{ cwe_name }}?
+- Is the framework configured to enable these protections?
+- Are there framework escape hatches that might be used here?
+
+### 5. Defense in Depth
+- Are there multiple layers of defense?
+- Network-level protections (WAF, firewall, rate limiting)?
+- OS-level protections (sandboxing, mandatory access control)?
+- Application-level protections (error handling, logging, monitoring)?
+
+### 6. Path Feasibility
+- Is the taint path actually reachable at runtime?
+- Dead code, conditional guards, error handling that prevents reaching sink.
+- Could runtime conditions prevent this path from executing?
+
+### 7. Counterexamples
+- What additional defenses, if present elsewhere, would make this a false positive?
+- What assumptions does the SAST tool make that might not hold?
+
+Be conservative but honest. Rate the overall defensive coverage from 0 (no protection) to 1 (fully protected).
+
+Respond with this exact JSON structure:
+{
+    "sanitizers_found": [
+        {"function": "name", "effectiveness": 0.0 to 1.0, "description": "what it does and its effectiveness against this CWE"}
+    ],
+    "access_controls": ["control 1 with explanation", "control 2"],
+    "framework_protections": ["protection 1 with assessment"],
+    "path_feasible": true or false,
+    "defense_coverage_score": 0.0 to 1.0,
+    "confidence_justification": "why this coverage score -- cite specific code evidence",
+    "assumptions": ["assumption about the code/environment"],
+    "counterexamples": ["condition that would change this assessment"],
+    "reasoning": "detailed explanation of defensive posture"
+}

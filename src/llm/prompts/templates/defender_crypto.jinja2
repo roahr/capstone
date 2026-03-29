@@ -1,0 +1,118 @@
+{#
+  Defender (Blue Team) prompt template for cryptographic vulnerabilities.
+  Covers: CWE-327 (Use of Broken Crypto Algorithm),
+          CWE-328 (Use of Weak Hash)
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert defensive security engineer specializing in applied cryptography and secure algorithm selection.
+
+Analyze the following code for defensive protections and context around a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Defender Perspective)
+
+Perform a thorough defensive analysis of the cryptographic usage. Evaluate each category:
+
+### 1. Non-Security Usage Assessment
+- **Critical check**: Is the weak algorithm used only for non-security purposes?
+  - **Legitimate non-security uses of MD5/CRC32**:
+    - Cache key generation / content deduplication
+    - ETags for HTTP caching
+    - File integrity checks in non-adversarial contexts (build systems, data pipelines)
+    - Checksum for data corruption detection (not tamper detection)
+    - Legacy protocol compliance where the hash value is not security-relevant
+  - **NOT legitimate**: Any use where an adversary could benefit from collisions, preimages, or brute-force
+  - Look for variable names, comments, or surrounding code that indicate the purpose
+
+### 2. Migration Path to Strong Algorithms
+- Is there evidence of an ongoing migration to stronger algorithms?
+  - Are both old and new algorithms used (dual-hashing during transition)?
+  - Are there TODOs, comments, or tickets referencing a migration plan?
+  - Is the weak algorithm in deprecated or legacy code paths?
+- **Recommended replacements:**
+  - MD5/SHA-1 for integrity: SHA-256 or SHA-3
+  - DES/3DES/RC4 for encryption: AES-256-GCM or ChaCha20-Poly1305
+  - MD5/SHA-* for passwords: bcrypt (work factor >= 12), scrypt, or Argon2id
+
+### 3. Password Hashing Assessment
+- **Critical check**: Are passwords stored using a purpose-built password hashing function?
+{% if language == "python" %}
+  - **Correct**: `bcrypt.hashpw()`, `passlib.hash.bcrypt`, `hashlib.scrypt()`, `argon2.PasswordHasher()`
+  - **Incorrect**: `hashlib.md5()`, `hashlib.sha256()` (even with salt -- no key stretching)
+  - **Django**: `PBKDF2PasswordHasher` (default, acceptable), `BCryptPasswordHasher` (better)
+{% elif language == "java" %}
+  - **Correct**: `BCrypt.hashpw()` (jBCrypt), `SCryptUtil.scrypt()`, `Argon2Factory`
+  - **Incorrect**: `MessageDigest.getInstance("MD5")` or `"SHA-256"` for passwords
+  - **Spring Security**: `BCryptPasswordEncoder` (correct default)
+{% elif language in ("javascript", "typescript") %}
+  - **Correct**: `bcrypt.hash()` (bcryptjs), `scrypt` (crypto module), `argon2.hash()`
+  - **Incorrect**: `crypto.createHash('md5')` or `'sha256'` for passwords
+{% else %}
+  - Is a purpose-built password hashing function (bcrypt, scrypt, Argon2) used?
+{% endif %}
+- Is a per-user salt used?
+- Is the work factor / iteration count sufficient for current hardware?
+
+### 4. Algorithm Configuration
+- If the algorithm itself is acceptable, is the configuration secure?
+  - AES: Is CBC mode used without HMAC? (Use GCM instead)
+  - RSA: Is the key size >= 2048 bits? Is OAEP padding used (not PKCS#1 v1.5)?
+  - HMAC: Is the key at least as long as the hash output?
+  - IV/Nonce: Is a fresh random IV/nonce used for each encryption operation?
+  - Key derivation: Is PBKDF2/HKDF used with sufficient iterations?
+
+### 5. Compliance and Standards
+- Does the usage comply with relevant cryptographic standards?
+  - NIST SP 800-131A: Algorithm and key length transitions
+  - FIPS 140-2/140-3: Approved algorithms
+  - PCI DSS: Requirements for cryptographic protection of cardholder data
+  - HIPAA: Requirements for PHI encryption
+
+### 6. Path Feasibility
+- Is the code path with the weak algorithm actually reachable?
+- Is the weak algorithm in dead code, test code, or feature-flagged code?
+
+### 7. Counterexamples
+- What additional context would make this finding a false positive?
+- What assumptions does the SAST tool make about the purpose of the hash?
+
+Respond with this exact JSON structure:
+{
+    "sanitizers_found": [
+        {"function": "name", "effectiveness": 0.0 to 1.0, "description": "cryptographic assessment"}
+    ],
+    "access_controls": ["control 1 with explanation"],
+    "framework_protections": ["protection 1 with assessment"],
+    "path_feasible": true or false,
+    "defense_coverage_score": 0.0 to 1.0,
+    "confidence_justification": "why this coverage score -- cite algorithm, purpose, and context",
+    "assumptions": ["assumption about the purpose of the cryptographic operation"],
+    "counterexamples": ["if algorithm is used only for caching, this is not a vulnerability"],
+    "reasoning": "detailed explanation of cryptographic defense assessment"
+}

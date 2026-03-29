@@ -1,0 +1,132 @@
+{#
+  Defender (Blue Team) prompt template for authentication/authorization vulnerabilities.
+  Covers: CWE-287 (Improper Authentication),
+          CWE-862 (Missing Authorization)
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert defensive security engineer specializing in authentication systems and access control design.
+
+Analyze the following code for defensive protections against a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Defender Perspective)
+
+Perform a thorough defensive analysis of authentication and authorization controls. Evaluate each category:
+
+### 1. Authentication Middleware/Decorator
+- **Critical check**: Is there a middleware, decorator, or interceptor that enforces authentication?
+{% if language == "python" %}
+  - **Django**: `@login_required`, `LoginRequiredMixin`, `MIDDLEWARE` with `AuthenticationMiddleware`
+  - **Django REST Framework**: `DEFAULT_AUTHENTICATION_CLASSES`, `permission_classes = [IsAuthenticated]`
+  - **Flask**: `@login_required` (Flask-Login), `before_request` hooks
+  - **FastAPI**: `Depends(get_current_user)`, OAuth2 security schemes, middleware
+  - Is `LOGIN_URL` configured? Is `AUTHENTICATION_BACKENDS` properly set?
+{% elif language == "java" %}
+  - **Spring Security**: `SecurityFilterChain`, `@PreAuthorize`, `@Secured`, `@RolesAllowed`
+  - `WebSecurityConfigurerAdapter` (deprecated) or `SecurityFilterChain` bean
+  - `httpSecurity.authorizeHttpRequests()` configuration
+  - Is method-level security enabled (`@EnableGlobalMethodSecurity`)?
+{% elif language in ("javascript", "typescript") %}
+  - **Express**: `passport.authenticate()` middleware, custom auth middleware
+  - **Next.js**: `middleware.ts` with auth checks, `getServerSideProps` auth
+  - **NestJS**: `@UseGuards(AuthGuard)`, `@Public()` decorator for exceptions
+  - Is the middleware applied globally or per-route?
+{% else %}
+  - Is there a centralized authentication mechanism?
+  - Is it applied consistently across all endpoints?
+{% endif %}
+
+### 2. Role and Permission Checks
+- Are roles and permissions verified before sensitive operations?
+  - Is Role-Based Access Control (RBAC) implemented?
+  - Is Attribute-Based Access Control (ABAC) used for fine-grained decisions?
+  - Are permission checks applied at the data layer (not just the presentation layer)?
+  - Are object-level permissions checked (not just function-level)?
+  - Is the principle of least privilege followed?
+{% if cwe_id == "CWE-862" %}
+- **Specific to Missing Authorization**:
+  - Is there an explicit authorization check for the identified operation?
+  - Does the check verify the requesting user owns or has access to the specific resource?
+  - Are all CRUD operations covered (not just read)?
+{% endif %}
+
+### 3. Authentication Framework Assessment
+- Is a reputable, well-tested authentication framework used?
+{% if language == "python" %}
+  - **Strong**: Django's built-in auth, Django REST Framework authentication, Authlib
+  - **Acceptable**: Flask-Login with proper session management, python-jose for JWT
+  - **Weak**: Custom authentication logic, manual password comparison
+{% elif language == "java" %}
+  - **Strong**: Spring Security, Apache Shiro, Keycloak integration
+  - **Weak**: Custom authentication filters, manual credential checking
+{% elif language in ("javascript", "typescript") %}
+  - **Strong**: Passport.js, Auth0 SDK, NextAuth.js, Firebase Auth
+  - **Weak**: Custom JWT handling without library, manual session management
+{% else %}
+  - Is the authentication framework well-maintained and widely audited?
+{% endif %}
+- Is the framework configured securely (strong password policy, account lockout, MFA)?
+
+### 4. Session Management
+- Is session management secure?
+  - Are session IDs regenerated after authentication?
+  - Are sessions properly invalidated on logout?
+  - Is session storage server-side (not relying solely on client-side tokens)?
+  - Are session cookies set with `Secure`, `HttpOnly`, and `SameSite` attributes?
+  - Is there session timeout (idle and absolute)?
+
+### 5. Global vs Per-Route Enforcement
+- Is authentication enforced globally with explicit exceptions, or per-route with risk of gaps?
+  - **Secure pattern**: Global middleware with `@public` or allowlist for unauthenticated routes
+  - **Risky pattern**: Per-route `@login_required` decorators (easy to forget)
+  - Are new routes authenticated by default?
+
+### 6. Path Feasibility
+- Is the taint path actually reachable at runtime without authentication?
+- Are there network-level protections (VPN, internal-only endpoints)?
+- Is this a public-facing or internal-only endpoint?
+
+### 7. Counterexamples
+- What additional defenses would make this finding a false positive?
+- Could authentication be enforced at a layer not visible in this code (reverse proxy, API gateway)?
+
+Respond with this exact JSON structure:
+{
+    "sanitizers_found": [
+        {"function": "name", "effectiveness": 0.0 to 1.0, "description": "what it does and its effectiveness"}
+    ],
+    "access_controls": ["control 1 with explanation", "control 2"],
+    "framework_protections": ["protection 1 with assessment"],
+    "path_feasible": true or false,
+    "defense_coverage_score": 0.0 to 1.0,
+    "confidence_justification": "why this coverage score -- cite specific authentication/authorization evidence",
+    "assumptions": ["assumption about the auth architecture"],
+    "counterexamples": ["if global middleware enforces auth, this endpoint is protected"],
+    "reasoning": "detailed explanation of authentication/authorization defensive posture"
+}

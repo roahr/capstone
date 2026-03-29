@@ -1,0 +1,104 @@
+{#
+  Attacker (Red Team) prompt template for cryptographic vulnerabilities.
+  Covers: CWE-327 (Use of Broken Crypto Algorithm),
+          CWE-328 (Use of Weak Hash)
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert offensive security researcher specializing in cryptographic weaknesses and cryptanalysis.
+
+Analyze the following code for a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Cryptographic Weakness Analysis
+
+**Known Broken/Weak Algorithms and Their Attacks:**
+
+### Hash Functions
+| Algorithm | Status | Known Attacks |
+|-----------|--------|---------------|
+| MD5 | **BROKEN** | Collision attacks in seconds (Wang et al. 2004). Chosen-prefix collisions demonstrated (Stevens et al. 2009). HashClash tool generates collisions trivially. |
+| SHA-1 | **BROKEN** | SHAttered attack (Google/CWI 2017) demonstrated practical collision. Cost: ~$110K in cloud compute (2019). Chosen-prefix collisions demonstrated (Leurent & Peyrin 2020). |
+| MD4 | **BROKEN** | Collisions found in milliseconds. Completely broken since 2004. |
+| RIPEMD | **WEAK** | Collision attacks demonstrated on original RIPEMD. RIPEMD-160 still theoretically secure but not recommended for new designs. |
+| CRC32 | **NOT CRYPTO** | Not a cryptographic hash. Trivially reversible. Never use for security. |
+
+### Symmetric Ciphers
+| Algorithm | Status | Known Attacks |
+|-----------|--------|---------------|
+| DES | **BROKEN** | 56-bit key brute-forced in hours. Deep Crack (1998): 22 hours. |
+| 3DES | **DEPRECATED** | Sweet32 birthday attack (2016). NIST deprecated after 2023. |
+| RC4 | **BROKEN** | Statistical biases enable plaintext recovery (Royal Holloway 2013). Bar-Mitzvah attack. Prohibited in TLS since RFC 7465. |
+| Blowfish | **WEAK** | 64-bit block size vulnerable to Sweet32. Not recommended for new designs. |
+| ECB mode | **INSECURE** | Deterministic: identical plaintext blocks produce identical ciphertext. The ECB Penguin demonstrates the problem visually. |
+
+### Password Hashing
+| Algorithm | Status | Assessment |
+|-----------|--------|------------|
+| Plain MD5/SHA-* | **INSECURE** | GPU cracking: billions of hashes/second. Hashcat benchmarks available. |
+| Unsalted hash | **INSECURE** | Rainbow table attacks. Pre-computed tables cover common passwords. |
+| Single iteration | **INSECURE** | No key stretching. Falls to brute-force. |
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Attacker Perspective)
+
+Perform a thorough cryptographic weakness exploitation analysis:
+
+1. **Algorithm Identification**: Which specific algorithm is used?
+   - Identify the exact algorithm, mode of operation, key size, and any configuration parameters.
+   - Is it a hash function, symmetric cipher, asymmetric cipher, or MAC?
+
+2. **Security Purpose Assessment**: Is the weak algorithm used for a security-critical purpose?
+   - **Password hashing**: Is MD5/SHA-1/SHA-256 (without key stretching) used to hash passwords?
+   - **Digital signatures**: Is a broken hash used in a signature scheme (e.g., HMAC-MD5 for API authentication)?
+   - **Data integrity**: Is a weak hash used to verify file integrity in a security-sensitive context?
+   - **Encryption**: Is a broken cipher used to protect sensitive data?
+   - **Token generation**: Is a weak hash used to generate session tokens or CSRF tokens?
+   - **Non-security use**: Is MD5/CRC32 used only as a cache key, deduplication hash, or checksum with no security implications?
+
+3. **Known Attacks**: What concrete attacks are possible against this algorithm in this context?
+   - Can an attacker forge a valid hash/signature?
+   - Can an attacker recover the plaintext from ciphertext?
+   - Can an attacker find a collision that bypasses integrity checks?
+   - What is the computational cost of the attack (time, money, hardware)?
+
+4. **Exploitation Assumptions**: List every assumption that must hold.
+
+5. **Counterexamples**: What would invalidate this finding?
+
+Respond with this exact JSON structure:
+{
+    "exploitable": true or false,
+    "payload": "description of the concrete attack approach or null",
+    "execution_trace": ["step 1: identify the weak algorithm ...", "step 2: apply known attack ...", "step 3: exploit the weakness ..."],
+    "blocking_factors": ["factor preventing exploitation 1", "factor 2"],
+    "confidence": 0.0 to 1.0,
+    "confidence_justification": "why this confidence level -- cite specific code evidence and algorithm properties",
+    "assumptions": ["assumption 1 (e.g., algorithm is used for password hashing, not checksums)", "assumption 2"],
+    "counterexamples": ["if MD5 is used only for cache keys, this is not a vulnerability", "condition 2"],
+    "reasoning": "detailed explanation of cryptographic weakness analysis"
+}

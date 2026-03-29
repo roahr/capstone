@@ -1,0 +1,69 @@
+# Ground truth labels for SEC-C test fixtures
+# Used by scripts/calibrate_weights.py for weight calibration
+
+vulnerable_python:
+  # Each entry: function_name -> {cwe, expected_verdict, line_range}
+  # line_range covers the function body where the vulnerability resides
+  get_user_unsafe:
+    cwe: "CWE-89"
+    verdict: "confirmed"
+    line_range: [17, 23]
+  search_products:
+    cwe: "CWE-89"
+    verdict: "confirmed"
+    line_range: [27, 32]
+  ping_host:
+    cwe: "CWE-78"
+    verdict: "confirmed"
+    line_range: [36, 38]
+  run_command:
+    cwe: "CWE-78"
+    verdict: "confirmed"
+    line_range: [42, 45]
+  read_file:
+    cwe: "CWE-22"
+    verdict: "confirmed"
+    line_range: [49, 53]
+  load_user_data:
+    cwe: "CWE-502"
+    verdict: "confirmed"
+    line_range: [57, 59]
+  render_greeting:
+    cwe: "CWE-79"
+    verdict: "confirmed"
+    line_range: [63, 65]
+  calculate:
+    cwe: "CWE-95"
+    verdict: "confirmed"
+    line_range: [69, 71]
+  hash_password:
+    cwe: "CWE-327"
+    verdict: "confirmed"
+    line_range: [80, 83]
+
+safe_python:
+  # These should NOT be flagged (true negatives)
+  get_user_safe:
+    cwe: "CWE-89"
+    verdict: "safe"
+  search_products_safe:
+    cwe: "CWE-89"
+    verdict: "safe"
+  ping_host_safe:
+    cwe: "CWE-78"
+    verdict: "safe"
+  read_file_safe:
+    cwe: "CWE-22"
+    verdict: "safe"
+  load_user_data_safe:
+    cwe: "CWE-502"
+    verdict: "safe"
+  render_greeting_safe:
+    cwe: "CWE-79"
+    verdict: "safe"
+  calculate_safe:
+    cwe: "CWE-95"
+    verdict: "safe"
+  hash_password_safe:
+    cwe: "CWE-327"
+    verdict: "safe"

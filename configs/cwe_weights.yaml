@@ -1,0 +1,81 @@
+# CWE-specific scoring weights for the fusion engine
+# Initial weights based on domain expertise.
+# Run scripts/calibrate_weights.py to calibrate on labeled data.
+# Format: CWE-ID -> {sast_weight, gat_weight, llm_weight}
+
+# Injection flaws - LLM excels at understanding context
+CWE-78:  # OS Command Injection
+  sast_weight: 0.25
+  gat_weight: 0.25
+  llm_weight: 0.50
+
+CWE-79:  # Cross-site Scripting (XSS)
+  sast_weight: 0.25
+  gat_weight: 0.25
+  llm_weight: 0.50
+
+CWE-89:  # SQL Injection
+  sast_weight: 0.30
+  gat_weight: 0.25
+  llm_weight: 0.45
+
+CWE-94:  # Code Injection
+  sast_weight: 0.25
+  gat_weight: 0.30
+  llm_weight: 0.45
+
+# Path/File flaws - taint analysis is strong here
+CWE-22:  # Path Traversal
+  sast_weight: 0.35
+  gat_weight: 0.30
+  llm_weight: 0.35
+
+CWE-434:  # Unrestricted File Upload
+  sast_weight: 0.30
+  gat_weight: 0.25
+  llm_weight: 0.45
+
+# Cryptographic issues - LLM struggles here (77-84% miss rate)
+CWE-327:  # Broken Crypto Algorithm
+  sast_weight: 0.50
+  gat_weight: 0.20
+  llm_weight: 0.30
+
+CWE-328:  # Weak Hash
+  sast_weight: 0.50
+  gat_weight: 0.20
+  llm_weight: 0.30
+
+# Memory safety - graph structure matters most
+CWE-416:  # Use After Free
+  sast_weight: 0.20
+  gat_weight: 0.50
+  llm_weight: 0.30
+
+CWE-476:  # NULL Pointer Dereference
+  sast_weight: 0.25
+  gat_weight: 0.45
+  llm_weight: 0.30
+
+# Deserialization - LLM context understanding critical
+CWE-502:  # Deserialization of Untrusted Data
+  sast_weight: 0.25
+  gat_weight: 0.25
+  llm_weight: 0.50
+
+# Authentication/Authorization - LLM semantic understanding
+CWE-287:  # Improper Authentication
+  sast_weight: 0.20
+  gat_weight: 0.25
+  llm_weight: 0.55
+
+CWE-862:  # Missing Authorization
+  sast_weight: 0.20
+  gat_weight: 0.25
+  llm_weight: 0.55
+
+# Default weights for unknown CWEs
+default:
+  sast_weight: 0.30
+  gat_weight: 0.30
+  llm_weight: 0.40

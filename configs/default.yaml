@@ -1,0 +1,136 @@
+# SEC-C Framework Configuration
+# Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection
+
+framework:
+  name: "sec-c"
+  version: "2.0.0"
+
+# Supported languages
+languages:
+  - python
+  - javascript
+  - java
+  - cpp
+  - go
+
+# Module 1: SAST Engine
+sast:
+  codeql:
+    cli_path: "codeql"  # Assumes codeql is in PATH
+    query_suite: "security-extended"
+    timeout_seconds: 300
+    database_cache_dir: "~/.sec-c/codeql-dbs"
+    github_token_env: "GITHUB_TOKEN"  # For downloading pre-built DBs
+
+  treesitter:
+    enabled: true
+    prescreen_timeout_ms: 100
+
+  uncertainty:
+    # 4-factor weights
+    confidence_weight: 0.4
+    complexity_weight: 0.3
+    novelty_weight: 0.2
+    conflict_weight: 0.1
+    # Escalation threshold
+    escalation_threshold: 0.5
+    # Severity adjustments to uncertainty score (replaces always_escalate_severities)
+    severity_adjustments:
+      critical: 0.15
+      high: 0.10
+      medium: 0.00
+      low: -0.05
+    max_taint_path_before_escalation: 3
+
+# Module 2: Graph-Augmented Validation
+graph:
+  joern:
+    binary_path: "joern"
+    timeout_seconds: 120
+    export_format: "graphml"
+
+  embeddings:
+    model: "microsoft/graphcodebert-base"
+    embedding_dim: 768
+    batch_size: 32
+    device: "cpu"  # or "cuda"
+
+  gnn:
+    # Mini-GAT architecture
+    input_dim: 773  # 768 (GraphCodeBERT) + 5 (graph features)
+    hidden_dim: 256
+    output_dim: 128
+    num_heads: 4
+    num_layers: 2
+    dropout: 0.3
+    model_path: "data/models/mini_gat.pt"
+
+  conformal:
+    alpha: 0.1  # 90% coverage guarantee
+    calibration_size: 0.2
+    method: "aps"  # Adaptive Prediction Sets
+
+# Module 3: LLM Dual-Agent Validation
+llm:
+  gemini:
+    model_pro: "gemini-2.5-pro"
+    model_flash: "gemini-2.5-flash"
+    primary_model: "gemini-2.5-flash"  # Use Flash as primary (higher quota)
+    fallback_model: "gemini-2.5-pro"   # Pro only for complex cases
+    api_key_env: "GEMINI_API_KEY"
+    # Free tier rate limits (updated for current Gemini free tier)
+    pro_rpm: 2
+    pro_rpd: 25
+    flash_rpm: 15
+    flash_rpd: 500
+    temperature: 0.1
+    max_output_tokens: 4096
+    max_batch_size: 5  # Batch up to 5 findings per prompt
+    prompt_tier_thresholds:
+      minimal: 0.3   # U_score < 0.3 -> minimal prompt
+      standard: 0.6  # 0.3 <= U_score < 0.6 -> standard prompt
+      # U_score >= 0.6 -> full prompt
+
+  consensus:
+    confirmed_defense_threshold: 0.5
+    safe_defense_threshold: 0.7
+    infeasible_confidence: 0.8
+
+  rag:
+    faiss_index_path: "data/rag/faiss_index"
+    bm25_index_path: "data/rag/bm25_index"
+    nvd_data_path: "data/rag/nvd"
+    cwe_data_path: "data/cwe"
+    top_k: 5
+    hybrid_weight_semantic: 0.6
+    hybrid_weight_keyword: 0.4
+
+  agents:
+    # Routing: complex cases to Pro, simpler to Flash
+    complexity_threshold: 0.7
+    max_retries: 2
+
+# Module 4: Reporting & Orchestration
+orchestrator:
+  # Score fusion weights
+  fusion:
+    sast_weight: 0.3
+    gat_weight: 0.3
+    llm_weight: 0.4
+
+  # Three-tier classification thresholds
+  classification:
+    confirmed_threshold: 0.85
+    likely_threshold: 0.50
+
+reporting:
+  sarif:
+    schema_version: "2.1.0"
+    tool_name: "sec-c"
+    tool_version: "2.0.0"
+    include_custom_properties: true
+
+  console:
+    color: true
+    verbose: false
+    show_cascade_stats: true

@@ -1,0 +1,119 @@
+{#
+  Defender (Blue Team) prompt template for path traversal vulnerabilities.
+  Covers: CWE-22 (Path Traversal)
+
+  Variables:
+    code_slice, taint_path, cwe_id, cwe_name, sast_message,
+    sast_confidence, location, graph_context, rag_context, language
+#}
+You are an expert defensive security engineer specializing in secure file system access and path validation.
+
+Analyze the following code for defensive protections against a potential **{{ cwe_id }} ({{ cwe_name }})** vulnerability.
+
+## Code Under Analysis
+```{{ language }}
+{{ code_slice }}
+```
+
+## Identified Taint Path
+{{ taint_path }}
+
+## SAST Finding
+- Rule: {{ cwe_id }}
+- Message: {{ sast_message }}
+- Location: {{ location }}
+- SAST Confidence: {{ sast_confidence }}
+{% if graph_context %}
+
+## Graph Analysis Results
+{{ graph_context }}
+{% endif %}
+{% if rag_context %}
+
+## Reference Knowledge
+{{ rag_context }}
+{% endif %}
+
+## Your Task (Defender Perspective)
+
+Perform a thorough defensive analysis against path traversal. Evaluate each category:
+
+### 1. Path Canonicalization
+- **Critical check**: Is the path resolved to its canonical (absolute, symlink-resolved) form before use?
+{% if language == "python" %}
+  - `os.path.realpath()` -- resolves symlinks and `..` components. **This is the correct defense.**
+  - `os.path.abspath()` -- resolves `..` but does NOT resolve symlinks (weaker)
+  - `pathlib.Path.resolve()` -- equivalent to `realpath` (correct)
+  - `os.path.normpath()` -- normalizes but does NOT make absolute (insufficient alone)
+{% elif language == "java" %}
+  - `file.getCanonicalPath()` -- resolves symlinks and `..` (correct)
+  - `file.getAbsolutePath()` -- does NOT resolve symlinks (weaker)
+  - `Paths.get(path).normalize()` -- normalizes `..` but does NOT resolve symlinks
+  - `Paths.get(path).toRealPath()` -- fully resolves (correct)
+{% elif language == "go" %}
+  - `filepath.EvalSymlinks()` followed by `filepath.Abs()` (correct)
+  - `filepath.Clean()` -- normalizes but does NOT resolve symlinks (insufficient)
+  - `filepath.Abs()` alone -- insufficient without symlink resolution
+{% else %}
+  - Is the path fully resolved (symlinks, `..`, relative components) before use?
+{% endif %}
+
+### 2. Base Directory Confinement Check
+- **Critical check**: Is the resolved path verified to be within the allowed base directory?
+{% if language == "python" %}
+  - Pattern: `os.path.realpath(user_path).startswith(os.path.realpath(base_dir))`
+  - Or: `pathlib.Path(user_path).resolve().is_relative_to(base_dir)` (Python 3.9+)
+  - **Pitfall**: String prefix check without trailing separator -- `/base/dir_evil` would pass check for `/base/dir`
+  - **Correct**: Ensure trailing `/` or use `os.path.commonpath()`
+{% elif language == "java" %}
+  - Pattern: `canonical.startsWith(baseDir.getCanonicalPath() + File.separator)`
+  - Or: `canonical.toPath().startsWith(baseDir.toPath())`
+{% elif language == "go" %}
+  - Pattern: `strings.HasPrefix(resolvedPath, baseDir + string(os.PathSeparator))`
+  - Or: `filepath.Rel(baseDir, resolvedPath)` and check result does not start with `..`
+{% endif %}
+- Is the check performed AFTER canonicalization (not before)?
+- Is the check case-sensitive on case-insensitive file systems (Windows)?
+
+### 3. Chroot / Sandbox / Container Isolation
+- Is the file operation sandboxed?
+  - Chroot jail restricting file system access
+  - Container with read-only or limited volume mounts
+  - OS-level mandatory access control (AppArmor, SELinux)
+  - Cloud storage abstraction (S3, GCS) that prevents traversal by design
+- Is the application running with minimal file system privileges?
+
+### 4. Input Validation
+- Are `..` sequences, absolute paths, and null bytes rejected?
+- Is filename validation applied (regex, allowlist of characters)?
+- Is the validation applied before or after URL decoding?
+- Are both forward slashes and backslashes checked?
+
+### 5. Access Controls
+- Is authentication required before accessing the file operation?
+- Are there per-user or per-role restrictions on which files can be accessed?
+- Is there an audit log of file access?
+
+### 6. Path Feasibility
+- Is the taint path actually reachable at runtime?
+- Are there pre-conditions that limit what paths can be constructed?
+- Could the vulnerability only be triggered in specific deployment configurations?
+
+### 7. Counterexamples
+- What additional defenses would make this finding a false positive?
+- What assumptions does the SAST tool make that might not hold?
+
+Respond with this exact JSON structure:
+{
+    "sanitizers_found": [
+        {"function": "name", "effectiveness": 0.0 to 1.0, "description": "what it does and why it is/isn't sufficient"}
+    ],
+    "access_controls": ["control 1 with explanation", "control 2"],
+    "framework_protections": ["protection 1 with assessment"],
+    "path_feasible": true or false,
+    "defense_coverage_score": 0.0 to 1.0,
+    "confidence_justification": "why this coverage score -- cite specific code evidence",
+    "assumptions": ["assumption about the code/environment"],
+    "counterexamples": ["condition that would change the assessment"],
+    "reasoning": "detailed explanation of defensive posture against path traversal"
+}
