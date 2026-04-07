@@ -1,0 +1,325 @@
+%-------------------------PREAMBLE-------------------------------------%
+\documentclass[a4paper, 12pt]{extreport}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,graphicx}
+\usepackage{siunitx}
+\usepackage{times}
+\usepackage{tikz}
+\usepackage{ragged2e}
+\usepackage{dialogue}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+%REMOVE THE SYMBOL % FROM 5 LINES BELOW TO ENABLE BIBLATEX PACKAGE
+%\usepackage[
+%backend=biber,
+%style=alphabetic,
+%sorting=ynt]{biblatex}%
+\usepackage{multicol}
+\usepackage{times}
+\usepackage{indentfirst}
+\usepackage{float}
+\usepackage{pythontex} \usepackage{listings}
+\usepackage[table]{xcolor}
+\usepackage{stmaryrd,amssymb,amsmath} % For mathematical symbols and equations
+\usepackage{changepage,threeparttable}
+\usepackage[skip=10pt plus1pt, indent=40pt]{parskip}
+\usepackage{atbegshi}% http://ctan.org/pkg/atbegshi
+\AtBeginDocument{\AtBeginShipoutNext{\AtBeginShipoutDiscard}}
+\usepackage{array} % For arrays of equations
+\usepackage{epsfig,graphicx,subfigure} % For inserting figures
+\usepackage{wrapfig} % For wraping texts around tables and figures
+\usepackage{tabularx} % For auto-adjusted column widths in tables
+\usepackage{multirow} % For merging cells in tables
+\usepackage{longtable} % For multi-page tables
+\usepackage{rotating} % For rotating a page (landscape) or inclined texts
+\usepackage{caption} % For adjusting captions of tables and figures
+\usepackage{color} % For writing colored texts
+\usepackage{setspace} % For adjusting line spacing
+\usepackage{boxedminipage,fancybox} % For boxed texts
+\usepackage{shadow} % For creating shaded box
+\usepackage{varioref} % For referring through \vref{} & \vpageref{}
+\usepackage{url} % For citing URL
+\usepackage{makeidx} % For generating index
+\usepackage{bm}
+\usepackage{wrapfig}
+\usepackage{lscape}
+
+\usepackage{rotating}
+\usepackage{longtable}
+\usepackage{booktabs, multirow} % for borders and merged ranges
+\usepackage{soul}% for underlines
+\usepackage[table]{xcolor} % for cell colors
+\usepackage{changepage,threeparttable} % for wide tables
+\usepackage{titlesec}
+\usepackage{xcolor}
+
+\usepackage{eso-pic,picture}
+\usepackage{nomencl}
+\usepackage{lipsum} 
+\makenomenclature
+\renewcommand{\nomname}{List of Symbols}
+\AddToShipoutPicture{%
+\setlength\fboxsep{1pt}%
+%BELOW IS THE CODE FOR BORDER
+%\put(24pt,24pt){\framebox(19.3066cm,28.0066cm)[lb]{}}%
+}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+ 
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+\titleformat{\chapter}[hang]
+  {\LARGE \LARGE \bfseries\centering}{\chaptertitlename\ \thechapter:}{0.5em}{}
+\titlespacing{\chapter}{0pt}{-22pt}{1cm}
+
+%BELOW IS THE CODE FOR PAGESIZE,
+\usepackage{geometry}
+\newgeometry{
+    top=30mm,
+    bottom=25mm,
+    left=35mm, 
+    right=20mm,
+}
+
+
+%------------------------- PREAMBLE ENDS ----------------------------------%
+
+%-----------TITLE PAGE----------------------------------
+\pagenumbering{roman}
+\title{\textbf{\uppercase{Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection}}\\                    %%% EDIT %%%
+         \vspace{0.5 cm}
+{\large PHASE I REPORT}\\ \vspace{0.5cm}
+{\textit{\large Submitted by}}\\ \vspace{0.5cm}
+\begin{table}[!htp]\centering
+\large
+\begin{tabular}{lrr}
+\textbf{\large ADITYA B} && \textbf{\large 22011103004} \\  %%% EDIT %%%
+\textbf{\large ROAHITH R} && \textbf{\large 22011103048} \\  %%% EDIT %%%
+\textbf{\large VISHAL MURUGAN DBS} && \textbf{\large 22011103065} \\  %%% EDIT %%%
+\end{tabular}
+\end{table}
+{\textit{\large in partial fulfilment for the award of the degree of}}\\ \vspace{0.5cm}
+{\large \textbf{BACHELOR OF TECHNOLOGY }}\\{\textbf{\large IN\\}}
+
+%%------------------ AIDS Branch ----------------------%%%%% EDIT %%%
+% {\large  \textbf{ARTIFICIAL INTELLIGENCE} \\ \large 
+% \textbf{\&} \\ \large  \textbf{DATA SCIENCE}}\\
+
+%%------------------ IOT Branch ----------------------%% %%% EDIT %%%  
+%{\large \textbf{COMPUTER SCIENCE AND ENGINEERING}}   \\ 
+%{\large \textbf{(INTERNET OF THINGS)}}\\
+
+%%------------------ Cyber Branch ----------------------%% %%% EDIT %%%  
+{\large \textbf{COMPUTER SCIENCE AND ENGINEERING}}   \\ 
+{\large \textbf{(CYBERSECURITY)}}\\
+
+\vspace{1.75cm}
+\includegraphics[scale=1.00]{SNUC_Logo.png}\\
+\vspace{0.5cm}
+\textbf{
+{\onehalfspacing \large DEPARTMENT OF COMPUTER SCIENCE \\ AND ENGINEERING
+\\SCHOOL OF ENGINEERING \\SHIV NADAR UNIVERSITY CHENNAI}}\\  
+\vspace{1.5cm} 
+\textbf{\large NOVEMBER  2025}\date{}
+\pagenumbering{gobble}}
+%-------------------END OF TITLE PAGE----------------%
+\begin{document}
+\maketitle 
+\renewcommand{\chaptername}{CHAPTER} 
+
+
+%----------------------------BONAFIDE SECTION-----------------------------%
+\chapter*{\LARGE  SHIV NADAR UNIVERSITY CHENNAI}
+\vspace{0.5cm}
+\begin{center}
+    {\textbf{\large  BONAFIDE CERTIFICATE}}\\
+\end{center}
+\vspace{2cm}
+\doublespacing{Certified that this report titled “\textbf{Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection}” is the bonafide work of \textbf{Aditya B} (Reg. No: \textbf{22011103004}), \textbf{Roahith R} (Reg. No: \textbf{22011103048}), \textbf{Vishal Murugan DBS} (Reg. No: \textbf{22011103065}) who carried out the work under my supervision.   Certified further that to the best of my knowledge the work reported herein does not form part of any other thesis or dissertation on the basis of which a degree or award was conferred on an earlier occasion on this or any other candidate.}  %%% EDIT %%%
+\vspace{2cm}
+\begin{table}[!htp] \centering \doublespacing
+\centering
+\begin{tabular}{llllll} 
+\textbf{SIGNATURE} & & \hspace{0.5cm} & & &\textbf{SIGNATURE} \\
+Dr. T. Nagarajan & & & & & Dr. K.B. Sundharakumar\\              %%% EDIT %%%
+\textbf{Professor } & & & & &\textbf{Associate Professor}  \\  %%% EDIT %%%
+\textbf{Head of the Department} & & & & &\textbf{Supervisor } \\
+Department of Computer Science \&  & & & & & Department of Computer Science \& \\
+Engineering & & & & & Engineering  \\
+School of Engineering & & & & &  School of Engineering \\
+Shiv Nadar University Chennai, & & & &  & Shiv Nadar University Chennai, \\Kalavakkam -603110. & & & & & Kalavakkam -603110. \\
+\end{tabular}
+\end{table}
+%------------------------------END OF BONAFIDE SECTION---------------------%
+
+
+
+%----------------------------------ABSTRACT-------------------------------%
+\thispagestyle{empty}
+\chapter*{\LARGE ABSTRACT}                                       %%% EDIT %%%
+%% ------------- Add the content of your Abstract below ----------------%
+\doublespacing
+Static Application Security Testing (SAST) tools traditionally suffer from high false-positive rates, leading to significant developer alert fatigue and disengagement. This project introduces the \textbf{Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection}, an uncertainty-driven hierarchical framework designed to address this critical limitation. Unlike conventional tools that apply uniform depth analysis, this solution  utilizes an adaptive, multi-stage architecture. This design allows for a more focused escalating only ambiguous or high-risk findings to more intensive analysis modules, while rapidly processing high-confidence detections.
+
+\indent The framework's methodology integrates two complementary paradigms: rapid, lightweight syntactic pattern matching and deep, interprocedural semantic analysis. The core workflow ingests source code, parses it into a relational database, and then transforms this data into a unified Code Property Graph (CPG). This heterogeneous graph captures the code's syntactic structure, control flow, and data-dependency relationships. This CPG is then enriched with multi-dimensional structural and security-semantic features, creating a rich computational substrate for analysis.
+
+\indent A key innovation is the system's uncertainty quantification engine. This component fuses several factors such as analysis confidence, code complexity, and conflicts between analyzers to compute an adaptive confidence score for each potential finding. This approach fixes the old choice between 'find all the bugs' and 'only report real bugs.' It does a fast scan to find all potential issues, then a deep scan to confirm which ones are real. This way, it's both thorough and accurate.
+The implementation provides a robust and well-tested platform, establishing a foundation for a hierarchical, multi-agent reasoning system.
+
+
+\pagenumbering{roman}
+\setcounter{page}{1}
+%-------------------------------END OF ABSTRACT SECTION--------------------%
+
+
+\addtocontents{toc}{\hspace{-1.4cm}\textbf{CHAPTER}  ~\hfill\textbf{PAGE NO.}\par}
+\addcontentsline{toc}{chapter}{ABSTRACT}
+
+
+%-----------------------------ACKNOWLEDGEMENT------------------------------%
+\chapter*{\LARGE ACKNOWLEDGEMENT}
+\justify\doublespacing
+We would like to express our sincere gratitude to all those who have provided invaluable guidance, support, and encouragement throughout the course of this project.
+ 
+First and foremost, We are deeply grateful to \textbf{Dr. T. Nagarajan}, Professor and Head, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his steadfast guidance and unwavering encouragement. His insights into the field of artificial intelligence and cognitive science have been instrumental in shaping the direction of this research. %%% EDIT %%%
+ 
+\indent We would like to sincerely and gratefully extend our heartfelt thanks to our supervisor \newline
+\textbf{Dr. K.B. Sundharakumar}, Associate Professor, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his mentorship and commitment to the success of this project. His expertise in the domain of Data Analysis  and Cybersecurity has been invaluable, providing us with the clarity and focus needed to tackle complex challenges and refine the methodology of this work.               
+
+
+We also acknowledge with gratitude the support of our family, whose understanding and encouragement have been crucial to the implementation of this project. Their unwavering belief in us has been a constant source of motivation and strength.
+
+%%%- ----------- Edit based on student count in your batch (3/4 ) %%% EDIT %%%-------%%
+\vspace{1.0cm}                      
+\begin{multicols}{3}  %% Change # to {3} if only 3 in your team & delete one section below --%%%%%%
+\centering
+\textbf{Aditya B}\\
+\textbf{(22011103004)}\\
+\vspace{0.1cm}
+
+
+\textbf{Roahith R}\\
+\textbf{(22011103048)}\\
+\vspace{0.1cm}
+
+
+\textbf{Vishal Murugan DBS}\\
+\textbf{(22011103048)}\\
+\vspace{0.1cm}
+
+\end{multicols}
+
+
+
+%--------------------------END OF ACKNOWLEDGEMENT------------------------%
+
+\renewcommand\contentsname{TABLE OF CONTENTS}
+\tableofcontents   
+\renewcommand{\listtablename}{LIST OF TABLES}
+\listoftables
+\addcontentsline{toc}{chapter}{LIST OF TABLES}
+\renewcommand{\listfigurename}{LIST OF FIGURES}
+\listoffigures
+\addcontentsline{toc}{chapter}{LIST OF FIGURES}
+
+%---------{LIST OF SYMBOLS, ABBREVIATIONS-------%                 %%% EDIT %%%
+ \renewcommand{\nomname}{LIST OF SYMBOLS, ABBREVIATIONS}
+  \nomenclature{SAST}{Static Application Security Testing}
+  \nomenclature{CPG}{Code Property Graph}
+  \nomenclature{AST}{Abstract Syntax Tree}
+  \nomenclature{CFG}{Control Flow Graph}
+  \nomenclature{DFG}{Data Flow Graph}
+  \nomenclature{CWE}{Common Weakness Enumeration}
+  \nomenclature{SARIF}{Static Analysis Results Interchange Format}
+  \nomenclature{YAML}{YAML Ain't Markup Language}
+  \nomenclature{TAINT\_FLOW}{Taint Propagation Edge}
+  \nomenclature{RAG}{Retrieval-Augmented Generation}
+  \nomenclature{GNN}{Graph Neural Network}
+  \nomenclature{TAINT\_FLOW}{Taint Propagation Edge}
+  \nomenclature{GNN}{Graph Neural Network}
+  \nomenclature{LLM}{Large Language Model}
+  \printnomenclature
+  \addcontentsline{toc}{chapter}{LIST OF SYMBOLS, ABBREVIATIONS}
+%------------ABBRA-----------%
+%ADD YOUR CHAPTERS BELOW THIS
+\renewcommand{\nomname}{LIST OF SYMBOLS}
+
+
+
+%------------CHAPTERS-----------%  %%% EDIT %%%
+%ADD YOUR CHAPTERS BELOW THIS
+\include{Chapter1.tex}
+\include{Chapter2.tex}
+\include{Chapter3.tex}
+\include{Chapter4.tex}
+\include{Chapter5.tex}
+
+
+
+
+%%%------------------ Bibilography Area ------ %%% EDIT %%%-----------%%
+\renewcommand\bibname{REFERENCES}
+\begin{thebibliography}{99}
+  \normalsize
+
+ \doublespacing{
+    \vspace{0.5pt}
+
+    \bibitem{fortify} Micro Focus. (2024). Fortify Static Code Analyzer. Retrieved from https://www.microfocus.com/
+
+    \bibitem{checkmarx} Checkmarx. (2024). Static Application Security Testing Solutions. Retrieved from https://www.checkmarx.com/
+
+    \bibitem{coverity} Synopsys. (2024). Coverity Static Analysis. Retrieved from https://www.synopsys.com/software-integrity/security-testing/static-analysis-sast.html
+
+    \bibitem{johnson2013} Johnson, B., Song, Y., Murphy-Hill, E., \& Bowdidge, R. (2013). Why don't software developers use static analysis tools to find bugs? In ICSE.
+
+    \bibitem{flowdroid} Arzt, S., Rasthofer, S., Fritz, C., Bodden, E., Bartel, A., Klein, J., ... \& McDaniel, P. (2014). FlowDroid: Precise context, flow, field, object-sensitive and lifecycle-aware taint analysis for Android apps. In PLDI.
+
+    \bibitem{codeql} GitHub. (2024). CodeQL: The libraries and queries that power security researchers around the world. Retrieved from https://codeql.github.com/
+
+    \bibitem{yamaguchi2014} Yamaguchi, F., Golde, N., Arp, D., \& Rieck, K. (2014). Modeling and discovering vulnerabilities with code property graphs. In IEEE S\&P.
+
+    \bibitem{semgrep} Heavyweight, Inc. (2024). Semgrep: Lightweight static analysis for many languages. Retrieved from https://semgrep.dev/
+
+    \bibitem{juliet} National Security Agency (NSA). (2017). Juliet Test Suite for C/C++ and Java. NIST Software Assurance Reference Dataset (SARD). Retrieved from https://samate.nist.gov/SARD/test-suites/112
+
+    \bibitem{nvd2023} National Institute of Standards and Technology. (2023). National Vulnerability Database Statistics. Retrieved from https://nvd.nist.gov/
+
+    \bibitem{slither} Trail of Bits. (2018). Slither: A Static Analysis Framework for Solidity. Retrieved from https://github.com/crytic/slither
+
+    \bibitem{binaryen} WebAssembly Community. (2015). Binaryen: Compiler and Toolchain Infrastructure Library for WebAssembly. Retrieved from https://github.com/WebAssembly/binaryen
+
+    \bibitem{tree_sitter} Max Brunsfeld. (2018). Tree-sitter: An Incremental Parsing System for Programming Tools. Retrieved from https://tree-sitter.github.io/tree-sitter/
+
+}
+\end{thebibliography}
+\addcontentsline{toc}{chapter}{REFERENCES}
+
+
+
+\appendix
+\renewcommand{\appendixname}{APPENDIX}
+\include{appendix}
+
+
+\end{document}

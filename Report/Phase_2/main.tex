@@ -1,0 +1,303 @@
+%-------------------------PREAMBLE-------------------------------------%
+\documentclass[a4paper, 12pt]{extreport}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,graphicx}
+\usepackage{siunitx}
+\usepackage{times}
+\usepackage{ragged2e}
+\usepackage{dialogue}
+%REMOVE THE SYMBOL % FROM 5 LINES BELOW TO ENABLE BIBLATEX PACKAGE
+%\usepackage[
+%backend=biber,
+%style=alphabetic,
+%sorting=ynt]{biblatex}%
+\usepackage{multicol}
+\usepackage{times}
+\usepackage{indentfirst}
+\usepackage{float}
+\usepackage{pythontex} \usepackage{listings}
+\usepackage[table]{xcolor}
+\usepackage{stmaryrd,amssymb,amsmath} % For mathematical symbols and equations
+\usepackage{changepage,threeparttable}
+\usepackage[skip=10pt plus1pt, indent=40pt]{parskip}
+\usepackage{atbegshi}% http://ctan.org/pkg/atbegshi
+\AtBeginDocument{\AtBeginShipoutNext{\AtBeginShipoutDiscard}}
+\usepackage{array} % For arrays of equations
+\usepackage{epsfig,graphicx,subfigure} % For inserting figures
+\usepackage{wrapfig} % For wraping texts around tables and figures
+\usepackage{tabularx} % For auto-adjusted column widths in tables
+\usepackage{multirow} % For merging cells in tables
+\usepackage{longtable} % For multi-page tables
+\usepackage{rotating} % For rotating a page (landscape) or inclined texts
+\usepackage{caption} % For adjusting captions of tables and figures
+\usepackage{color} % For writing colored texts
+\usepackage{setspace} % For adjusting line spacing
+\usepackage{boxedminipage,fancybox} % For boxed texts
+\usepackage{shadow} % For creating shaded box
+\usepackage{varioref} % For referring through \vref{} & \vpageref{}
+\usepackage{url} % For citing URL
+\usepackage{makeidx} % For generating index
+\usepackage{bm}
+\usepackage{wrapfig}
+\usepackage{lscape}
+
+\usepackage{rotating}
+\usepackage{longtable}
+\usepackage{booktabs, multirow} % for borders and merged ranges
+\usepackage{soul}% for underlines
+\usepackage[table]{xcolor} % for cell colors
+\usepackage{changepage,threeparttable} % for wide tables
+\usepackage{titlesec}
+\usepackage{xcolor}
+
+\usepackage{eso-pic,picture}
+\usepackage{nomencl}
+\usepackage{lipsum}
+
+% --- Added for Phase 2 content (TikZ diagrams, algorithms, plots) ---
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, automata, calc, fit, backgrounds}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{mathtools}
+
+\makenomenclature
+\renewcommand{\nomname}{List of Symbols}
+\AddToShipoutPicture{%
+\setlength\fboxsep{1pt}%
+%BELOW IS THE CODE FOR BORDER
+%\put(24pt,24pt){\framebox(19.3066cm,28.0066cm)[lb]{}}%
+}
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+ 
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+\lstset{style=mystyle}
+\titleformat{\chapter}[hang]
+  {\LARGE \LARGE \bfseries\centering}{\chaptertitlename\ \thechapter:}{0.5em}{}
+\titlespacing{\chapter}{0pt}{-22pt}{1cm}
+
+%BELOW IS THE CODE FOR PAGESIZE,
+\usepackage{geometry}
+\newgeometry{
+    top=30mm,
+    bottom=25mm,
+    left=35mm, 
+    right=20mm,
+}
+
+
+%------------------------- PREAMBLE ENDS ----------------------------------%
+
+%-----------TITLE PAGE----------------------------------
+\pagenumbering{roman}
+\title{\textbf{{TITLE OF PROJECT}}\\                    %%% EDIT %%%
+         \vspace{0.5 cm}
+{\large PHASE II REPORT}\\ \vspace{0.5cm}
+{\textit{\large Submitted by}}\\ \vspace{0.5cm}
+\begin{table}[!htp]\centering
+\large
+\begin{tabular}{lrr}
+\textbf{\large FULL NAME} && \textbf{\large REGNO} \\  %%% EDIT %%%
+\textbf{\large FULL NAME} && \textbf{\large REGNO} \\  %%% EDIT %%%
+\textbf{\large FULL NAME} && \textbf{\large REGNO} \\  %%% EDIT %%%
+\textbf{\large FULL NAME} && \textbf{\large REGNO} \\  %%% EDIT %%%
+\end{tabular}
+\end{table}
+{\textit{\large in partial fulfilment for the award of the degree of}}\\ \vspace{0.5cm}
+{\large \textbf{BACHELOR OF TECHNOLOGY }}\\{\textbf{\large IN\\}}
+
+%%------------------ AIDS Branch ----------------------%%%%% EDIT %%%
+{\large  \textbf{ARTIFICIAL INTELLIGENCE} \\ \large 
+\textbf{\&} \\ \large  \textbf{DATA SCIENCE}}\\
+
+%%------------------ IOT Branch ----------------------%% %%% EDIT %%%  
+%{\large \textbf{COMPUTER SCIENCE AND ENGINEERING}}   \\ 
+%{\large \textbf{(INTERNET OF THINGS)}}\\
+
+\vspace{1.75cm}
+\includegraphics[scale=1.00]{SNUC_Logo.png}\\
+\vspace{0.5cm}
+\textbf{
+{\onehalfspacing \large DEPARTMENT OF COMPUTER SCIENCE \\ AND ENGINEERING
+\\SCHOOL OF ENGINEERING \\SHIV NADAR UNIVERSITY CHENNAI}}\\  
+\vspace{1.5cm} 
+\textbf{\large APRIL  2025}\date{}
+\pagenumbering{gobble}}
+%-------------------END OF TITLE PAGE----------------%
+
+\begin{document}
+\maketitle 
+\renewcommand{\chaptername}{CHAPTER} 
+
+
+%----------------------------BONAFIDE SECTION-----------------------------%
+\chapter*{\LARGE  SHIV NADAR UNIVERSITY CHENNAI}
+\vspace{0.5cm}
+\begin{center}
+    {\textbf{\large  BONAFIDE CERTIFICATE}}\\
+\end{center}
+\vspace{2cm}
+\doublespacing{Certified that this report titled “\textbf{PROJECT TITLE}” is the bonafide work of \textbf{FULL NAME} (Reg. No: \textbf{XXXXXXXXXXX}), \textbf{FULL NAME} (Reg. No: \textbf{XXXXXXXXXXX}), \textbf{FULL NAME} (Reg. No: \textbf{XXXXXXXXXXX}), \textbf{FULL NAME} (Reg. No: \textbf{XXXXXXXXXXX}) who carried out the work under my supervision.   Certified further that to the best of my knowledge the work reported herein does not form part of any other thesis or dissertation on the basis of which a degree or award was conferred on an earlier occasion on this or any other candidate.}  %%% EDIT %%%
+\vspace{2cm}
+\begin{table}[!htp] \centering \doublespacing
+\centering
+\begin{tabular}{llllll} 
+\textbf{SIGNATURE} & & \hspace{0.5cm} & & &\textbf{SIGNATURE} \\
+Dr. T. Nagarajan & & & & & Dr. Name Of supervisor \\              %%% EDIT %%%
+\textbf{Professor \& Head  } & & & & &\textbf{Supervisor Designation}  \\  %%% EDIT %%%
+Department of Computer Science \&  & & & & & Department of Computer Science \& \\
+Engineering & & & & & Engineering  \\
+School of Engineering & & & & &  School of Engineering \\
+Shiv Nadar University Chennai, & & & &  & Shiv Nadar University Chennai, \\Kalavakkam -603110. & & & & & Kalavakkam -603110. \\
+\end{tabular}
+\end{table}
+%------------------------------END OF BONAFIDE SECTION---------------------%
+
+
+
+%----------------------------------ABSTRACT-------------------------------%
+\thispagestyle{empty}
+\chapter*{\LARGE ABSTRACT}                                       %%% EDIT %%%
+%% ------------- Add the content of your Abstract below ----------------%
+\doublespacing
+Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.\\
+\indent Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.\\
+\textbf{Keywords} - Lorem Ipsum , Lorem Ipsum                         %%% EDIT %%%
+
+\pagenumbering{roman}
+\setcounter{page}{1}
+%-------------------------------END OF ABSTRACT SECTION--------------------%
+
+
+\addtocontents{toc}{\hspace{-1.4cm}\textbf{CHAPTER}  ~\hfill\textbf{PAGE NO.}\par}
+\addcontentsline{toc}{chapter}{ABSTRACT}
+
+
+%-----------------------------ACKNOWLEDGEMENT------------------------------%
+\chapter*{\LARGE ACKNOWLEDGEMENT}
+\justify\doublespacing
+we would like to express our sincere gratitude to all those who have provided invaluable guidance, support, and encouragement throughout the course of this project.
+ 
+First and foremost, We are deeply grateful to \textbf{Dr. T. Nagarajan}, Professor and Head, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his steadfast guidance and unwavering encouragement. His insights into the field of artificial intelligence and cognitive science have been instrumental in shaping the direction of this research. %%% EDIT %%%
+ 
+We would like to extend our heartfelt thanks to our supervisor, \textbf{Dr. GUIDE NAME}, GUIDE DESIGNATION, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for her/his mentorship and commitment to the success of this project. Her/His expertise in the domain of Artificial Intelligence and XXXXX has been invaluable, providing us with the clarity and focus needed to tackle complex challenges and refine the methodology of this work.               
+
+
+We also acknowledge with gratitude the support of our family, whose understanding and encouragement have been crucial to the implementation of this project. Their unwavering belief in us has been a constant source of motivation and strength.
+
+%%%- ----------- Edit based on student count in your batch (3/4 ) %%% EDIT %%%-------%%
+\vspace{1.0cm}                      
+\begin{multicols}{2}  %% Change # to {3} if only 3 in your team & delete one section below --%%%%%%
+\centering
+\textbf{Loreum Ipsum}\\
+\textbf{(2KXX/XX/XXX)}\\
+\vspace{0.1cm}
+
+
+\textbf{Loreum Ipsum}\\
+\textbf{(2KXX/XX/XXX)}\\
+\vspace{0.1cm}
+
+\end{multicols}
+
+\vspace{1cm}                      
+\begin{multicols}{2}  %% Change # to {3} if only 3 in your team & delete one section below --%%%%%%
+\centering
+\textbf{Loreum Ipsum}\\
+\textbf{(2KXX/XX/XXX)}\\
+\vspace{0.1cm}
+
+
+\textbf{Loreum Ipsum}\\
+\textbf{(2KXX/XX/XXX)}\\
+\vspace{0.1cm}
+
+\end{multicols}
+
+
+%--------------------------END OF ACKNOWLEDGEMENT------------------------%
+
+\renewcommand\contentsname{TABLE OF CONTENTS}
+\tableofcontents   
+\renewcommand{\listtablename}{LIST OF TABLES}
+\listoftables
+\addcontentsline{toc}{chapter}{LIST OF TABLES}
+\renewcommand{\listfigurename}{LIST OF FIGURES}
+\listoffigures
+\addcontentsline{toc}{chapter}{LIST OF FIGURES}
+
+%---------{LIST OF SYMBOLS, ABBREVIATIONS-------%                 %%% EDIT %%%
+\renewcommand{\nomname}{LIST OF SYMBOLS, ABBREVIATIONS} 
+\nomenclature{\(g\)}{Acceleration due to gravity}
+\nomenclature{\(\rho\)}{Density}
+\nomenclature{\(\alpha\)}{Angle of attack}
+\nomenclature{\(\psi\)}{Angle of yaw}
+\nomenclature{\(\beta\)}{Angle of sideslip}
+\nomenclature{\(M\)}{Mach number}
+\nomenclature{\(Re\)}{Reynold's number}
+\nomenclature{\(C_L\)}{Coefficient of lift}
+\nomenclature{\(C_D\)}{Coefficient of drag}
+\nomenclature{AI}{Artificial Intelligence}
+\printnomenclature
+\addcontentsline{toc}{chapter}{LIST OF SYMBOLS, ABBREVIATIONS}
+%------------ABBRA-----------%
+%ADD YOUR CHAPTERS BELOW THIS
+\renewcommand{\nomname}{LIST OF SYMBOLS}
+
+%------------CHAPTERS-----------%  %%% EDIT %%%
+%ADD YOUR CHAPTERS BELOW THIS
+\include{Chapter1.tex}
+\include{Chapter2.tex}
+\include{Chapter3.tex}
+\include{Chapter4.tex}
+\include{Chapter5.tex}
+
+
+
+
+%%%------------------ Bibilography Area ------ %%% EDIT %%%-----------%%
+\renewcommand\bibname{REFERENCES}
+\begin{thebibliography}{1}
+\normalsize
+
+\doublespacing{
+\vspace{0.5pt}
+
+\bibitem{1}Reilly, T., \& Williams, A. M. (2003). Science and Soccer: Developing Elite Players. Routledge.
+\bibitem{2}S. Venkataraman, K. Sundharakumar, A. Bharathi Malakreddy, \& S. Natarajan(2024), YUVA-SQ: A Cognitive Scouting Model for The Beautiful Game, 5th International Conference on Innovative Trends in Information Technology (ICITIIT), Kottayam, India, 2024, pp. 1-6
+
+
+%FOLLOW ABOVE CODE FOR ADDING MORE REFERENCES! TO CITE THIS IN YOUR REPORT USE \cite{1}.
+}
+
+\end{thebibliography}
+\addcontentsline{toc}{chapter}{REFERENCES}
+
+\appendix
+\renewcommand{\appendixname}{APPENDIX}
+\include{appendix}
+
+\chapter*{\centering \large  CONFERENCE PROOF\markboth{CONFERENCE PROOF}{SCOPUS INDEXED CONFERENCE PROOF}}
+\end{document}

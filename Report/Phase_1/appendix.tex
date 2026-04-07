@@ -1,0 +1,210 @@
+\appendix
+
+\chapter{\uppercase{Appendix}}
+\label{appendix:implementation}
+
+\section{Detection Rule Schema}
+
+The framework implements 9 built-in security rules using a declarative YAML-based pattern matching system. Table \ref{tab:rules-implemented} summarizes the implemented detection rules.
+
+\begin{table}[H]
+\centering
+\caption{Implemented Security Detection Rules}
+\label{tab:rules-implemented}
+\footnotesize
+\begin{tabular}{|l|p{5cm}|l|p{3.5cm}|}
+\hline
+\textbf{Rule ID} & \textbf{Description} & \textbf{Severity} & \textbf{CWE Mapping} \\
+\hline
+PY.EVAL.USE & Dangerous use of eval() or exec() & High & CWE-94 (Code Injection) \\
+\hline
+PY.SUBPROCESS.SHELL & Subprocess with shell=True & High & CWE-78 (Command Injection) \\
+\hline
+PY.OS.SYSTEM & Use of os.system() & High & CWE-78 (Command Injection) \\
+\hline
+PY.SQL.INJECTION & SQL query string concatenation & High & CWE-89 (SQL Injection) \\
+\hline
+PY.PICKLE.LOAD & Unsafe pickle deserialization & High & CWE-502 (Deserialization) \\
+\hline
+PY.YAML.UNSAFE\_LOAD & Unsafe YAML loading & High & CWE-502 (Deserialization) \\
+\hline
+PY.HASH.WEAK & Weak cryptographic hash & Medium & CWE-327 (Weak Crypto) \\
+\hline
+PY.REQUESTS.VERIFY & Disabled SSL verification & Medium & CWE-295 (Certificate Valid.) \\
+\hline
+PY.SECRET.HARDCODED & Hardcoded secrets & Medium & CWE-798 (Hardcoded Creds) \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Rule Definition Format}
+
+Each rule follows a standardized YAML schema with pattern matching specifications. Example structure:
+
+\begin{small}
+\begin{verbatim}
+id: PY.SUBPROCESS.SHELL
+title: Subprocess called with shell=True
+severity: high
+description: >
+  Using subprocess with shell=True can lead to shell
+  injection vulnerabilities if user input is included.
+patterns:
+  - kind: call
+    callee:
+      anyOf:
+        - subprocess.run
+        - subprocess.Popen
+        - subprocess.call
+      args:
+        - name: shell
+          equals: true
+examples:
+  bad: subprocess.run(f"ls {user_input}", shell=True)
+  good: subprocess.run(["ls", user_input])
+tags: [injection, command-execution]
+references:
+  - "https://docs.python.org/3/library/subprocess.html"
+\end{verbatim}
+\end{small}
+
+\section{Code Property Graph Schema}
+
+The CPG implementation defines a heterogeneous graph structure with 6 node types and 12 edge types for comprehensive code representation.
+
+\begin{table}[H]
+\centering
+\caption{CPG Node and Edge Type Taxonomy}
+\label{tab:cpg-schema}
+\footnotesize
+\begin{tabular}{|l|p{6cm}|l|}
+\hline
+\multicolumn{3}{|c|}{\textbf{Node Types (6 total)}} \\
+\hline
+\textbf{Type} & \textbf{Description} & \textbf{Attributes} \\
+\hline
+FUNCTION & Function/method definitions & name, line\_number, signature \\
+\hline
+CALL & Function call expressions & name, arguments, is\_sink \\
+\hline
+STATEMENT & Assignment, control flow statements & type, line\_number \\
+\hline
+EXPRESSION & Binary/unary operations & operator, operands \\
+\hline
+VARIABLE & Variable references & name, scope, is\_source \\
+\hline
+LITERAL & Constant values & value, data\_type \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\footnotesize
+\begin{tabular}{|l|p{7cm}|p{3cm}|}
+\hline
+\multicolumn{3}{|c|}{\textbf{Edge Types (12 total)}} \\
+\hline
+\textbf{Type} & \textbf{Semantic Meaning} & \textbf{Usage} \\
+\hline
+AST & Abstract syntax tree parent-child relationship & Structural analysis \\
+\hline
+CFG\_NEXT & Control flow next statement & Execution paths \\
+\hline
+CFG\_BRANCH & Conditional branch edge & Branch analysis \\
+\hline
+DFG & Data flow def-use relationship & Data dependencies \\
+\hline
+TAINT & Taint propagation path & Security analysis \\
+\hline
+CALL & Function call relationship & Call graph \\
+\hline
+RETURN & Return value flow & Data flow \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Taint Analysis Configuration}
+
+The implementation detected 13 taint sources, 11 sinks, and 4 sanitizers in comprehensive testing.
+
+\begin{table}[H]
+\centering
+\caption{Taint Analysis Configuration (Implemented)}
+\label{tab:taint-config-impl}
+\scriptsize
+\begin{tabular}{|p{2.5cm}|p{5.5cm}|p{2cm}|p{2cm}|}
+\hline
+\textbf{Category} & \textbf{Patterns (Total: 28)} & \textbf{Severity} & \textbf{Tests} \\
+\hline
+\multicolumn{4}{|l|}{\textbf{SOURCES (13 detected in tests)}} \\
+\hline
+User Input & \texttt{input()}, \texttt{raw\_input()}, \texttt{sys.argv} & Critical & 3 \\
+\hline
+HTTP Requests & \texttt{request.args}, \texttt{request.form}, \texttt{request.json} & Critical & 4 \\
+\hline
+Environment & \texttt{os.environ}, \texttt{os.getenv()} & High & 2 \\
+\hline
+Network/Files & \texttt{socket.recv()}, \texttt{file.read()} & Medium & 4 \\
+\hline
+\multicolumn{4}{|l|}{\textbf{SINKS (11 detected in tests)}} \\
+\hline
+Command Exec & \texttt{os.system()}, \texttt{subprocess.*} with shell=True & Critical & 4 \\
+\hline
+Code Eval & \texttt{eval()}, \texttt{exec()}, \texttt{compile()} & Critical & 3 \\
+\hline
+SQL Exec & \texttt{cursor.execute()}, \texttt{connection.execute()} & High & 2 \\
+\hline
+Serialization & \texttt{pickle.loads()}, \texttt{yaml.load()} & High & 2 \\
+\hline
+\multicolumn{4}{|l|}{\textbf{SANITIZERS (4 detected in tests)}} \\
+\hline
+Escaping & \texttt{shlex.quote()}, \texttt{html.escape()} & - & 2 \\
+\hline
+Type Casting & \texttt{int()}, \texttt{float()}, \texttt{bool()} & - & 2 \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Implementation Results}
+
+\subsection{Taint Analysis Test Results}
+
+Comprehensive testing on real vulnerability patterns demonstrated the following detection capabilities:
+
+\begin{table}[H]
+\centering
+\caption{Taint Analysis Detection Results}
+\label{tab:taint-results}
+\footnotesize
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{5.3cm}|c|c|c|}
+\hline
+\textbf{Vulnerability Pattern} & \textbf{Detected} & \textbf{Paths} & \textbf{Severity} \\
+\hline
+Direct Input $\rightarrow$ \texttt{eval()} & \checkmark & 1 & CRITICAL \\
+\hline
+Environment Variable $\rightarrow$ \texttt{eval()} & \checkmark & 1 & CRITICAL \\
+\hline
+Input $\rightarrow$ \texttt{os.system()} & \checkmark & 3 & HIGH \\
+\hline
+Input $\rightarrow$ \texttt{subprocess.run(shell=True)} & \checkmark & 2 & HIGH \\
+\hline
+Multi-step Assignments (3+ hops) & \checkmark & 2 & HIGH \\
+\hline
+String Concatenation Taint & \checkmark & 4 & HIGH \\
+\hline
+F-string Taint Propagation & \checkmark & 2 & HIGH \\
+\hline
+Sanitized Paths (\texttt{shlex.quote}) & \checkmark~(Safe) & 2 & - \\
+\hline
+Type Casting Sanitization (\texttt{int()}) & \checkmark~(Safe) & 1 & - \\
+\hline
+\textbf{Total Vulnerable Paths Found} & \textbf{9/11} & \textbf{15} & - \\
+\hline
+\textbf{Total Safe Paths Verified} & \textbf{2/2} & \textbf{3} & - \\
+\hline
+\end{tabular}
+\end{table}
+
+

@@ -1,0 +1,69 @@
+\chapter{\uppercase{Introduction}}
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\section{\uppercase{Background}}
+
+\subsection{The Crisis of Alert Fatigue in Modern DevSecOps}
+\doublespacing{
+In the modern software development lifecycle (SDLC), the "shift-left" paradigm integrating security checks as early as possible has become standard practice. Central to this philosophy is Static Application Security Testing (SAST), a class of tools designed to analyze source code for security vulnerabilities before compilation or execution. In theory, SAST tools constitute a powerful defense mechanism, promising to identify flaws at the most cost-effective point of remediation: the developer's workspace.
+
+In practice, however, traditional SAST tooling is beset by a critical operational failure: an untenably high rate of false positives, ranging from 30-50\% in production environments. This deluge of non-actionable alerts, or "noise," has precipitated a critical human-factor breakdown known as \textit{developer alert fatigue}. When developers are constantly inundated with warnings for code they know to be safe, they become desensitized. Security alerts, which should constitute high-priority events, are relegated to background noise ignored, bypassed, or permanently silenced.
+
+}
+
+\subsection{Evolution of Vulnerability Detection Approaches}
+\doublespacing{
+The field of automated vulnerability detection has evolved through several generations of techniques. First-generation tools relied on simple pattern matching and regular expressions to identify potentially dangerous code patterns. Second-generation approaches introduced data flow analysis and control flow graphs to track information propagation through programs. Third-generation systems, emerging in the past decade, leverage machine learning techniques including deep learning and graph neural networks to learn vulnerability patterns from large codebases.
+
+According to the National Vulnerability Database (NVD), over 25,000 new Common Vulnerabilities and Exposures (CVEs) were reported in 2023 alone, representing a 15\% increase from the previous year. These vulnerabilities, ranging from SQL injection and cross-site scripting (XSS) to more sophisticated memory corruption and authentication bypass flaws, pose significant risks to organizations worldwide.
+
+Recent advances in artificial intelligence, particularly Graph Neural Networks (GNNs) and Large Language Models (LLMs) for structural reasoning and semantic code understanding through learned representations, have opened new possibilities. However, these technologies have typically been applied in isolation, missing opportunities for synergistic combination that could overcome individual limitations.
+}
+
+\subsection{The Syntactic versus Semantic Gap}
+\doublespacing{
+The high false-positive rate is not a failing of any single tool but rather a fundamental limitation of the \textit{paradigm} upon which traditional SAST is built. Conventional tools operate at a \textit{syntactic} level they are, in essence, highly advanced pattern-matchers scanning source code for text patterns or traversing Abstract Syntax Trees (AST) searching for structures resembling known vulnerabilities.
+
+This approach is inherently \textit{context-blind}. A syntactic scanner can identify a dangerous function call, such as \texttt{os.system(command)}, and flag it as a potential command injection vulnerability. What it \textit{cannot} determine is the program's \textit{semantic} context. It lacks data-flow awareness to ascertain whether the \texttt{command} variable, originating from user input several lines earlier, was passed through a validation function like \texttt{is\_safe\_path()} that properly sanitized it. The tool perceives dangerous \textit{syntax} but misses safe \textit{semantics}, generating a false positive.
+}
+
+\section{\uppercase{Problem Statement}}
+\doublespacing{
+Given a source code file or repository, the objective is to \textbf{accurately detect security vulnerabilities with high precision and low false positive rates while maintaining computational efficiency}. Specifically, the system must:
+
+\begin{enumerate}
+    \item Achieve precision $\geq$ 85\% and recall $\geq$ 80\%, surpassing traditional SAST tools (60-75\% precision, 50-70\% recall)
+    \item Reduce false positive rate to $<$ 15\%, compared to 30-50\% for traditional SAST
+    \item Provide intelligent prioritization through uncertainty quantification
+    \item Support multiple vulnerability types including SQL injection, command injection, path traversal, XSS, and insecure deserialization
+    \item Maintain latency $<$ 100ms for 65-75\% of cases (fast path), $<$ 1s for 95\% of cases
+    \item Enable future integration of advanced AI techniques (GNN, LLM) through robust computational substrates
+\end{enumerate}
+
+The system must balance accuracy and computational cost through adaptive inference, escalating from lightweight syntactic analysis to expensive semantic validation only when necessary.
+}
+
+\section{\uppercase{Motivation}}
+\doublespacing{
+The motivation for this project stems from three key observations in current vulnerability detection research:
+
+\textbf{1. Complementary Strengths of Different Approaches:} Lightweight static analysis excels at rapid pattern matching, semantic analyzers provide deep interprocedural reasoning, and graph-based representations enable structural pattern recognition. However, existing systems typically employ only one approach, leaving potential synergies unexplored.
+
+\textbf{2. The Cost-Accuracy Trade-off:} While deep semantic analysis can achieve higher accuracy, it incurs significant computational costs (5-15 seconds per file). Many vulnerability assessments could be resolved with lightweight analysis ($<$ 100ms), reserving expensive deep analysis for uncertain cases. Current systems lack adaptive computation strategies.
+
+\textbf{3. The Graph Representation Thesis:} To bridge the syntactic-semantic gap, code must be represented as a unified, queryable graph structure rather than simple text patterns or trees. This enables modeling vulnerabilities as they truly exist: interactions between syntax, control flow, and data flow.
+}
+
+% \section{\uppercase{Contributions}}
+% \doublespacing{
+% This work makes the following key contributions to vulnerability detection research:
+
+% \textbf{1. Comprehensive Taint Analysis Framework:} We achieve 74\% token-level taint coverage through four complementary techniques 22 custom propagation rules, implicit flow detection, field-sensitive analysis, and alias tracking representing a 2.5$\times$ improvement over state-of-the-art approaches.
+
+% \textbf{2. Enhanced Code Property Graph Schema:} We define a heterogeneous CPG schema with 8 node types (Statement, Expression, Function, Variable, Literal, Parameter, Return, Call) and 9 edge types (AST\_CHILD, CFG\_NEXT, CFG\_BRANCH, DFG\_DEF\_USE, TAINT\_FLOW, IMPLICIT\_FLOW, FIELD\_ACCESS, CONTAINER\_ELEMENT, ALIAS\_OF) capturing both syntactic and semantic program properties.
+
+% \textbf{3. Production-Ready CPG Construction Pipeline:} We implement a robust, well-tested CPG extraction system with 150+ unit tests, 30+ integration tests, and 85\%+ code coverage, providing a modular foundation for future advanced analysis techniques.
+
+% \textbf{4. Extensible Architecture:} Our modular design explicitly separates CPG construction (Phase 1, completed) from future reasoning layers (GNN structural analysis, LLM semantic validation, uncertainty-based escalation), enabling incremental system development and research experimentation.
+% }

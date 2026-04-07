@@ -1,0 +1,36 @@
+\chapter{\uppercase {Introduction}}
+\section{\uppercase {Background}}
+\subsection{Concept}
+\pagenumbering{arabic}
+\setcounter{page}{1} 
+\doublespacing{Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.}
+
+\subsection{{Motivation}}
+\doublespacing{Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.\cite{1}}
+
+Figure \textbf{\ref{fig:samplefig}} is a Sample Picture that can be saved in the `Figures` folder and included in the text here.
+\begin{figure}[!htp]
+    \includegraphics[scale=0.3]{Figures/sampleimg.PNG}
+    \centering\caption{Caption of the image}
+    \label{fig:samplefig}
+\end{figure}
+
+
+\begin{adjustwidth}{-2.5cm}{-2.5cm}  % Adjust width slightly if necessary
+\centering
+\begin{threeparttable}[!htb]
+\caption{Table Caption}\label{SampleTable}
+\normalsize % You can adjust the font size here (use \footnotesize for a slightly larger font)
+\begin{tabularx}{\textwidth}{>{\hsize=0.65\hsize}X >{\hsize=0.85\hsize}X >{\hsize=1.5\hsize}X}  % Adjust column widths
+\toprule
+\textbf{Column 1} & \textbf{Column 2} & \textbf{Column 3} \\\midrule
+Data 1 & Data A & More Information \\
+Data 2 & Data B & Even More Information \\
+Data 3 & Data C & Some More Information \\
+\bottomrule
+\end{tabularx}
+\end{threeparttable}
+\end{adjustwidth}
+
+
+\doublespacing{\textbf{Table \ref{SampleTable}} Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum. }
