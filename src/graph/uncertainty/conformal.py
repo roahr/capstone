@@ -87,6 +87,7 @@ class ConformalPredictor:
         self._calibration_scores: np.ndarray | None = None
         self._is_calibrated: bool = False
         self._calibration_size: int = 0
+        self._temperature: float = 1.0  # ConfTS temperature (1.0 = no scaling)
 
     # ------------------------------------------------------------------
     # Public API
@@ -141,7 +142,8 @@ class ConformalPredictor:
         for data in calibration_loader:
             data = data.to(device)
             logits, _ = model(data.x, data.edge_index, data.batch)
-            probs = F.softmax(logits, dim=-1)
+            # Apply ConfTS temperature scaling before softmax
+            probs = F.softmax(logits / self._temperature, dim=-1)
 
             all_softmax.append(probs.cpu().numpy())
             all_labels.extend(data.y.cpu().tolist())
@@ -162,7 +164,10 @@ class ConformalPredictor:
         quantile_level = min(
             math.ceil((n + 1) * (1.0 - self.alpha)) / n, 1.0
         )
-        self._quantile_threshold = float(np.quantile(scores, quantile_level, method="higher"))
+        self._quantile_threshold = min(
+            float(np.quantile(scores, quantile_level, method="higher")),
+            1.0,  # Clamp to 1.0 (float precision can produce 1.0+eps)
+        )
         self._calibration_scores = scores
         self._calibration_size = n
         self._is_calibrated = True
@@ -217,7 +222,8 @@ class ConformalPredictor:
         batch = batch.to(device)
 
         logits, _ = model(x, edge_index, batch)
-        probs = F.softmax(logits, dim=-1)  # (1, C)
+        # Apply ConfTS temperature scaling before softmax
+        probs = F.softmax(logits / self._temperature, dim=-1)  # (1, C)
         probs_np = probs.cpu().numpy().squeeze(0)  # (C,)
 
         prediction_set = self._build_prediction_set(probs_np)

@@ -1,9 +1,9 @@
 """
 Per-node feature extractor for GNN input.
 
-Extracts five hand-crafted features per node from a Code Property Graph,
-producing a (num_nodes, 5) tensor that is concatenated with 768-dim
-GraphCodeBERT embeddings to form the 773-dim input for Mini-GAT.
+Extracts six hand-crafted features per node from a Code Property Graph,
+producing a (num_nodes, 6) tensor that is concatenated with 768-dim
+GraphCodeBERT embeddings to form the 774-dim input for MiniGINv3.
 
 These features match exactly what the Kaggle training pipeline computes,
 so inference reproduces the same feature semantics.
@@ -15,6 +15,7 @@ Features (all normalised to [0, 1])
 3. **is_sink**         -- 1.0 if the node's code matches a known taint sink.
 4. **is_source**       -- 1.0 if the node's code matches a known taint source.
 5. **depth_norm**      -- BFS depth from root / max BFS depth.
+6. **language_id**     -- language encoding (py=0.0, js=0.2, java=0.4, c/cpp=0.6, go=0.8).
 """
 
 from __future__ import annotations
@@ -32,15 +33,27 @@ logger = logging.getLogger(__name__)
 class NodeFeatureExtractor:
     """Extract per-node features from a Joern CPG.
 
-    5 features per node, all normalised to [0, 1]:
+    6 features per node, all normalised to [0, 1]:
       - in_degree_norm:  in-degree  / max_in_degree
       - out_degree_norm: out-degree / max_out_degree
       - is_sink:   1.0 if node looks like a taint sink
       - is_source: 1.0 if node looks like a taint source
       - depth_norm: BFS depth from root / max_depth
+      - language_id: language encoding (py=0.0, js=0.2, java=0.4, c/cpp=0.6, go=0.8)
     """
 
-    NUM_FEATURES: int = 5
+    NUM_FEATURES: int = 6
+
+    LANGUAGE_IDS: dict[str, float] = {
+        "python": 0.0,
+        "javascript": 0.2,
+        "typescript": 0.2,
+        "java": 0.4,
+        "c": 0.6,
+        "cpp": 0.6,
+        "c_cpp": 0.6,
+        "go": 0.8,
+    }
 
     SINK_PATTERNS: list[str] = [
         "execute", "system", "popen", "eval", "exec", "write",
@@ -58,18 +71,22 @@ class NodeFeatureExtractor:
     # Public API
     # ------------------------------------------------------------------
 
-    def extract(self, graph: nx.DiGraph) -> torch.Tensor:
+    def extract(
+        self, graph: nx.DiGraph, language: str = "python"
+    ) -> torch.Tensor:
         """Extract per-node features from *graph*.
 
         Args:
             graph: A NetworkX directed graph (typically a CPG or CPG
                 slice).  Nodes may carry ``"code"`` attributes used for
                 sink/source detection.
+            language: Programming language of the code (used for the
+                ``language_id`` feature).
 
         Returns:
-            A ``torch.Tensor`` of shape ``(num_nodes, 5)`` with dtype
+            A ``torch.Tensor`` of shape ``(num_nodes, 6)`` with dtype
             ``float32``.  If the graph is empty, returns a tensor of
-            shape ``(0, 5)``.
+            shape ``(0, 6)``.
         """
         nodes: list[Any] = list(graph.nodes())
         num_nodes = len(nodes)
@@ -99,6 +116,9 @@ class NodeFeatureExtractor:
         # -- BFS depth from root ---------------------------------------
         depth_norm = self._compute_bfs_depth(graph, nodes, node_to_idx)
 
+        # -- Language ID -----------------------------------------------
+        lang_id = self.LANGUAGE_IDS.get(language.lower(), 0.5)
+
         # -- Assemble tensor -------------------------------------------
         features = torch.zeros(num_nodes, self.NUM_FEATURES, dtype=torch.float32)
         for i in range(num_nodes):
@@ -107,6 +127,7 @@ class NodeFeatureExtractor:
             features[i, 2] = is_sink[i]
             features[i, 3] = is_source[i]
             features[i, 4] = depth_norm[i]
+            features[i, 5] = lang_id
 
         return features
 

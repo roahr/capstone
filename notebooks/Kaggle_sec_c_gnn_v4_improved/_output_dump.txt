@@ -1,0 +1,532 @@
+
+======================================================================
+code_cells[0]: # Cell 1: Setup & Install
+======================================================================
+PyTorch: 2.10.0, CUDA: 128
+$ install pyg deps
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.9/10.9 MB 105.7 MB/s eta 0:00:00
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.4/5.4 MB 115.0 MB/s eta 0:00:00
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.5/3.5 MB 104.9 MB/s eta 0:00:00
+$ install torch-geometric
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 63.7/63.7 kB 4.0 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 53.4 MB/s eta 0:00:00
+$ install utils
+$ install tree-sitter
+ 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 108.1/108.1 kB 9.9 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 99.7/99.7 kB 8.2 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 84.0/84.0 kB 5.6 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 98.1/98.1 kB 8.4 MB/s eta 0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 66.4/66.4 kB 4.1 MB/s eta 0:00:00
+  tree-sitter: OK
+
+============================================================
+  GPU: Tesla T4 (15.6 GB)
+============================================================
+  Device: cuda
+
+
+======================================================================
+code_cells[1]: # Cell 2: Configuration — V5 (all hyperparameters in one place)
+======================================================================
+Configuration loaded.
+  Architecture: MiniGINv3, 3-layer GIN, hidden=384
+  Training: LR=0.0003, warmup=5ep, patience=20
+  Balance: 1.0:1 (strict per-language)
+  Loss: CE + label_smoothing=0.0 (no focal loss)
+  Conformal: alpha=0.1 (90% coverage target)
+  Max per language: 20000 (V4: uncapped for C/C++)
+
+
+======================================================================
+code_cells[2]: # Cell 3: Dataset Loading — V4 (verified HuggingFace IDs, corrected schemas)
+======================================================================
+============================================================
+  1. BigVul (C/C++, ~217K real CVE-labeled functions)
+
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+
+  [BigVul] 10000 samples — {0: 9394, 1: 606} — langs={'c_cpp': 10000}
+============================================================
+  2. DiverseVul (C/C++, 330K real CVE-labeled)
+
+  [DiverseVul] 8000 samples — {1: 8000} — langs={'c_cpp': 8000}
+============================================================
+  3. Devign/CodeXGLUE (C/C++, 27K real samples, all splits)
+
+  [Devign] 5000 samples — {0: 2678, 1: 2322} — langs={'c_cpp': 5000}
+============================================================
+  4. PrimeVul (C/C++, 236K deduplicated, hardest benchmark)
+
+    PrimeVul train: Value is too big!
+
+    PrimeVul valid: Value is too big!
+
+    PrimeVul test: Value is too big!
+  [PrimeVul] 0 samples
+============================================================
+  5. Juliet C/C++ (LorenzH/juliet_test_suite_c_1_3, 101K avail)
+
+  [Juliet-C] 6000 samples — {1: 3000, 0: 3000} — langs={'c_cpp': 6000}
+============================================================
+  6. CrossVul multi-language (hitoshura25/crossvul, 9.3K pairs)
+
+  [CrossVul] 6000 samples — {1: 3000, 0: 3000} — langs={'go': 108, 'javascript': 260, 'python': 404, 'c_cpp': 5020, 'java': 208}
+============================================================
+  7. VUDENC Python (DetectVul/Vudenc, 15.8K statement-level CVE)
+
+  [VUDENC] 3000 samples — {0: 2916, 1: 84} — langs={'python': 3000}
+============================================================
+  8. CVEfixes Python (DetectVul/CVEFixes, 5.7K statement-level)
+
+  [CVEfixes-Py] 3000 samples — {0: 2964, 1: 36} — langs={'python': 3000}
+
+Raw total: 41000 samples
+  Labels:    vuln=17048, safe=23952
+  CWE known: 26558/41000 (64.8%)
+  c_cpp                34020 (v=16438, s=17582)
+  go                     108 (v=54, s=54)
+  java                   208 (v=104, s=104)
+  javascript             260 (v=130, s=130)
+  python                6404 (v=322, s=6082)
+
+Source breakdown:
+  BigVul                    10000
+  DiverseVul                 8000
+  Juliet-C                   6000
+  CrossVul                   6000
+  Devign                     5000
+  VUDENC                     3000
+  CVEfixes-Py                3000
+
+
+======================================================================
+code_cells[3]: # Cell 4: Strict Per-Language 1:1 Balance
+======================================================================
+============================================================
+  V3 Strict 1:1 Per-Language Balancing
+============================================================
+
+1. Dedup: 41000 -> 39674
+2. Length filter: 39462 samples remain
+
+3. Per-language 1:1 balance:
+   Lang              Vuln   Safe  Total  Action
+   -------------------------------------------------------
+   python             298    298    596  v:ok s:under(5295->298)
+   javascript         126    126    252  v:ok s:under(128->126)
+   java                97     97    194  v:ok s:ok
+   c_cpp            10000  10000  20000  v:under(16136->10000) s:under(17177->10000)
+   go                  54     54    108  v:ok s:ok
+
+   Final: 21150 samples — vuln=10575, safe=10575, ratio=1.00:1
+   CWE labels known: 21150/21150 (100.0%)
+
+   [CKPT] raw_samples_v3.json saved (21150 samples)
+
+
+======================================================================
+code_cells[4]: # Cell 5: Exploratory Data Analysis
+======================================================================
+======================================================================
+  Language          Total    Vuln    Safe    Ratio
+  -------------------------------------------------------
+  python              596     298     298    1.00:1
+  javascript          252     126     126    1.00:1
+  java                194      97      97    1.00:1
+  c_cpp             20000   10000   10000    1.00:1
+  go                  108      54      54    1.00:1
+  -------------------------------------------------------
+  TOTAL             21150   10575   10575    1.00:1
+======================================================================
+
+Source distribution:
+  BigVul                     5777
+  DiverseVul                 4935
+  Juliet-C                   3611
+  CrossVul                   3428
+  Devign                     3002
+  VUDENC                      222
+  CVEfixes-Py                 175
+
+Top 10 CWEs:
+  unknown               5450
+  CWE-119               2178
+  CWE-20                1805
+  CWE-125               1064
+  CWE-264                857
+  CWE-200                841
+  CWE-399                601
+  CWE-189                495
+  CWE-416                476
+  CWE-190                459
+
+/tmp/ipykernel_24/247468078.py:47: UserWarning: set_ticklabels() should only be used with a fixed number of ticks, i.e. after set_ticks() or using a FixedLocator.
+  axes[1].set_xticklabels([c for c,_ in cwe_ctr2.most_common(12)], rotation=45, ha='right')
+
+EDA complete.
+
+
+======================================================================
+code_cells[5]: # Cell 6: Build Code Graphs
+======================================================================
+Graph builder OK: 8 nodes, 14 edges
+  Using: tree-sitter mode
+  Edge types: Counter({'ast': 6, 'ast_skip': 5, 'ddg': 3})
+
+
+======================================================================
+code_cells[6]: # Cell 7: Build PyG Dataset with GraphCodeBERT + structural features
+======================================================================
+Loading GraphCodeBERT...
+
+RobertaModel LOAD REPORT from: microsoft/graphcodebert-base
+Key                             | Status     | 
+--------------------------------+------------+-
+lm_head.layer_norm.bias         | UNEXPECTED | 
+lm_head.dense.weight            | UNEXPECTED | 
+roberta.embeddings.position_ids | UNEXPECTED | 
+lm_head.decoder.weight          | UNEXPECTED | 
+lm_head.decoder.bias            | UNEXPECTED | 
+lm_head.layer_norm.weight       | UNEXPECTED | 
+lm_head.dense.bias              | UNEXPECTED | 
+lm_head.bias                    | UNEXPECTED | 
+pooler.dense.bias               | MISSING    | 
+pooler.dense.weight             | MISSING    | 
+
+Notes:
+- UNEXPECTED	:can be ignored when loading from different task/architecture; not ok if you expect identical arch.
+- MISSING	:those params were newly initialized because missing from the checkpoint. Consider training on your downstream task.
+
+  Loaded on cuda
+
+Building PyG dataset (21150 samples, start=0)...
+
+
+Embedding:   0%|          | 0/21150 [00:00<?, ?it/s][A
+Embedding:   0%|          | 1/21150 [00:00<4:39:05,  1.26it/s][A
+Embedding:   0%|          | 3/21150 [00:00<1:37:11,  3.63it/s][A
+Embedding:   0%|          | 5/21150 [00:02<2:54:00,  2.03it/s][A
+Embedding:   0%|          | 7/21150 [00:02<2:06:23,  2.79it/s][A
+Embedding:   0%|          | 9/21150 [00:02<1:26:48,  4.06it/s][A
+Embedding:   0%|          | 10/21150 [00:04<3:10:34,  1.85it/s][A
+Embedding:   0%|          | 11/21150 [00:04<2:52:57,  2.04it/s][A
+Embedding:   0%|          | 12/21150 [00:04<2:22:24,  2.47it/s][A
+Embedding:   0%|          | 14/21150 [00:05<1:31:13,  3.86it/s][A
+Embedding:   0%|          | 16/21150 [00:06<1:59:48,  2.94it/s][A
+Embedding:   0%|          | 18/21150 [00:06<1:25:04,  4.14it/s][A
+Embedding:   0%|          | 20/21150 [00:07<2:25:01,  2.43it/s][A
+Embedding:   0%|          | 22/21150 [00:07<1:47:36,  3.27it/s][A
+Embedding:   0%|          | 26/21150 [00:07<1:04:12,  5.48it/s][A
+Embedding:   0%|          | 28/21150 [00:09<1:51:19,  3.16it/s][A
+Embedding:   0%|          | 29/21150 [00:09<1:39:56,  3.52it/s][A
+Embedding:   0%|          | 31/21150 [00:09<1:22:44,  4.25it/s][A
+Embedding
+... [TRUNCATED] ...
+3.35it/s][A
+Embedding: 100%|█████████▉| 21116/21150 [2:19:04<00:09,  3.70it/s][A
+Embedding: 100%|█████████▉| 21117/21150 [2:19:04<00:08,  3.73it/s][A
+Embedding: 100%|█████████▉| 21119/21150 [2:19:06<00:15,  1.98it/s][A
+Embedding: 100%|█████████▉| 21120/21150 [2:19:07<00:16,  1.82it/s][A
+Embedding: 100%|█████████▉| 21121/21150 [2:19:07<00:13,  2.13it/s][A
+Embedding: 100%|█████████▉| 21125/21150 [2:19:07<00:06,  3.96it/s][A
+Embedding: 100%|█████████▉| 21126/21150 [2:19:07<00:05,  4.25it/s][A
+Embedding: 100%|█████████▉| 21129/21150 [2:19:08<00:03,  5.90it/s][A
+Embedding: 100%|█████████▉| 21132/21150 [2:19:08<00:02,  8.24it/s][A
+Embedding: 100%|█████████▉| 21134/21150 [2:19:08<00:01,  9.66it/s][A
+Embedding: 100%|█████████▉| 21136/21150 [2:19:10<00:04,  3.23it/s][A
+Embedding: 100%|█████████▉| 21139/21150 [2:19:11<00:04,  2.43it/s][A
+Embedding: 100%|█████████▉| 21141/21150 [2:19:12<00:03,  2.66it/s][A
+Embedding: 100%|█████████▉| 21143/21150 [2:19:12<00:02,  3.42it/s][A
+Embedding: 100%|█████████▉| 21144/21150 [2:19:12<00:01,  3.58it/s][A
+Embedding: 100%|█████████▉| 21148/21150 [2:19:13<00:00,  5.38it/s][A
+Embedding: 100%|██████████| 21150/21150 [2:19:13<00:00,  2.53it/s]
+
+
+  Built 21150 graphs, 0 failed
+  [CKPT] Saved -> /kaggle/working/pyg_dataset_v3.pt
+  [CKPT] Saved -> /kaggle/working/pyg_dataset_v3_backup.pt
+  GraphCodeBERT freed from GPU
+
+  Sample: 46 nodes, 89 edges, dim=774
+  Total graphs: 21150
+
+
+======================================================================
+code_cells[7]: # Cell 8: Stratified Split (by label + language)
+======================================================================
+Split summary:
+  Train  12689  vuln=6345  safe=6344  ratio=1.00:1
+  Val     3173  vuln=1586  safe=1587  ratio=1.00:1
+  Cal     3172  vuln=1586  safe=1586  ratio=1.00:1
+  Test    2116  vuln=1058  safe=1058  ratio=1.00:1
+
+DataLoaders ready (batch_size=64)
+
+
+======================================================================
+code_cells[8]: # Cell 9: MiniGINv3 Model
+======================================================================
+MiniGINv3 on cuda
+  Params: 2,375,046 (V2 was 298K)
+  Arch:   774 -> 384*3 -> 768 -> 2
+
+
+======================================================================
+code_cells[9]: # Cell 10: Training
+======================================================================
+Loss: CrossEntropyLoss(weight=[1.0, 1.5], smoothing=0.0)
+
+======================================================================
+  Training MiniGINv3 (100 epochs, patience=20)
+  LR=0.0003, warmup=5ep, batch=64
+======================================================================
+
+  Epoch   1/100  tl=36.7977 vl=27.9773 F1=0.0000 P=0.0000 R=0.0000 lr=6.00e-05
+  Epoch   2/100  tl=5.7623 vl=1.4606 F1=0.7140 P=0.6091 R=0.8625 lr=1.20e-04 *
+  Epoch   3/100  tl=1.6252 vl=0.5855 F1=0.7336 P=0.6253 R=0.8871 lr=1.80e-04 *
+  Epoch   4/100  tl=1.4025 vl=0.5504 F1=0.7369 P=0.6091 R=0.9325 lr=2.40e-04 *
+  Epoch   5/100  tl=1.2181 vl=0.5452 F1=0.7381 P=0.6083 R=0.9382 lr=3.00e-04 *
+  Epoch   6/100  tl=1.0683 vl=0.6704 F1=0.7417 P=0.6353 R=0.8909 lr=3.00e-04 *
+  Epoch   8/100  tl=0.7157 vl=0.5352 F1=0.7479 P=0.6380 R=0.9035 lr=2.99e-04 *
+  Epoch  10/100  tl=0.6297 vl=0.5594 F1=0.7392 P=0.6391 R=0.8764 lr=2.98e-04
+  Epoch  12/100  tl=0.5922 vl=0.6000 F1=0.7596 P=0.6404 R=0.9332 lr=2.96e-04 *
+  Epoch  15/100  tl=0.5244 vl=0.6058 F1=0.7575 P=0.6323 R=0.9445 lr=2.92e-04
+  Epoch  20/100  tl=0.4440 vl=0.5774 F1=0.7585 P=0.6503 R=0.9098 lr=2.82e-04
+  Epoch  23/100  tl=0.4395 vl=0.5995 F1=0.7596 P=0.6506 R=0.9124 lr=2.74e-04 *
+  Epoch  25/100  tl=0.4004 vl=0.6022 F1=0.7593 P=0.6430 R=0.9269 lr=2.68e-04
+  Epoch  30/100  tl=0.3465 vl=0.8009 F1=0.7514 P=0.7015 R=0.8090 lr=2.52e-04
+  Epoch  35/100  tl=0.3072 vl=0.9860 F1=0.7541 P=0.6593 R=0.8808 lr=2.32e-04
+  Epoch  40/100  tl=0.2617 vl=1.1791 F1=0.7543 P=0.6788 R=0.8487 lr=2.10e-04
+  Epoch  41/100  tl=0.2574 vl=1.0642 F1=0.7623 P=0.6668 R=0.8897 lr=2.06e-04 *
+  Epoch  45/100  tl=0.2317 vl=1.2242 F1=0.7554 P=0.6719 R=0.8625 lr=1.87e-04
+  Epoch  50/100  tl=0.1983 vl=1.5422 F1=0.7492 P=0.6761 R=0.8398 lr=1.62e-04
+  Epoch  55/100  tl=0.1787 vl=1.6440 F1=0.7294 P=0.6986 R=0.7629 lr=1.38e-04
+  Epoch  60/100  tl=0.1619 vl=1.9376 F1=0.7379 P=0.6856 R=0.7989 lr=1.13e-04
+
+  Early stopping at epoch 61 (patience=20)
+
+  Done in 7.0 min. Best epoch 41 (F1=0.7623)
+  Restored best weights
+
+
+======================================================================
+code_cells[10]: # Cell 11: F1-Optimal Decision Threshold Calibration (V3 key fix)
+======================================================================
+============================================================
+  F1-Optimal Threshold Search (val set, 3173 samples)
+============================================================
+  Best threshold: 0.32
+  Val F1:         0.7644
+  Val Precision:  0.6545
+  Val Recall:     0.9187
+
+  Comparison (V2 used argmax = 0.5):
+  threshold=0.50: F1=0.7623 P=0.6668 R=0.8897
+  threshold=0.32: F1=0.7644 P=0.6545 R=0.9187
+
+
+======================================================================
+code_cells[11]: # Cell 12: Comprehensive Evaluation using DECISION_THRESHOLD (not argmax)
+======================================================================
+======================================================================
+  TEST SET EVALUATION (threshold=0.32, N=2116)
+======================================================================
+  Accuracy:  0.6999
+  Precision: 0.6430
+  Recall:    0.8989
+  F1:        0.7497
+  AUC-ROC:   0.7813
+
+              precision    recall  f1-score   support
+
+        safe       0.83      0.50      0.63      1058
+  vulnerable       0.64      0.90      0.75      1058
+
+    accuracy                           0.70      2116
+   macro avg       0.74      0.70      0.69      2116
+weighted avg       0.74      0.70      0.69      2116
+
+
+  Per-Language:
+  Lang                N     Acc       P       R      F1
+  --------------------------------------------------
+  python             60  0.8167  0.7568  0.9333  0.8358
+  javascript         26  0.5385  0.5200  1.0000  0.6842
+  java               20  0.5000  0.5000  1.0000  0.6667
+  c_cpp            2000  0.7020  0.6455  0.8960  0.7504
+  go                 10  0.4000  0.4444  0.8000  0.5714
+
+  Per-CWE (top 15):
+  CWE                        N      F1
+  -------------------------------------
+  unknown                  535  0.6863
+  CWE-119                  207  0.6719
+  CWE-20                   175  0.7477
+  CWE-125                  111  0.6968
+  CWE-264                   87  0.6222
+  CWE-200                   74  0.7551
+  CWE-189                   67  0.7381
+  CWE-399                   60  0.7308
+  CWE-190                   58  0.7229
+  CWE-416                   43  0.7500
+  CWE-476                   39  0.6800
+  CWE-362                   39  0.5946
+  CWE-787                   24  0.9091
+  CWE-22                    23  0.6897
+  CWE-284                   19  0.8000
+
+
+======================================================================
+code_cells[12]: # Cell 12b: Conformal Temperature Scaling (ConfTS)
+======================================================================
+============================================================
+  ConfTS: Temperature Search (75 candidates)
+  alpha=0.1, val_n=3173
+============================================================
+
+  Best T = 0.100
+  Mean set size: 1.4630  (T=1.0 baseline: 1.9738)
+  Singleton rate: 53.7%  (T=1.0: 2.6%)
+  Coverage: 0.9203  (target >= 0.90)
+
+       T     Cov   MeanSz  Single%      Thr
+  ------------------------------------------
+   0.050  0.8711   1.3382   66.2%   1.0000
+   0.100  0.9203   1.4630   53.7%   1.0000 <--
+   0.150  0.9436   1.5424   45.8%   1.0000
+   0.200  0.9628   1.6089   39.1%   1.0000
+   0.250  0.9764   1.6618   33.8%   1.0000
+   0.300  0.9830   1.7094   29.1%   1.0000
+   0.350  0.9861   1.7469   25.3%   1.0000
+   0.400  0.9899   1.7816   21.8%   1.0000
+   0.450  0.9915   1.8424   15.8%   1.0000
+   0.500  0.9928   1.8698   13.0%   1.0000
+   0.520  0.9934   1.8783   12.2%   1.0000
+   0.540  0.9934   1.8834   11.7%   1.0000
+
+  Saved confts_temperature_v5.png
+
+
+======================================================================
+code_cells[13]: # Cell 13: Conformal Prediction — APS calibration
+======================================================================
+============================================================
+  Conformal Prediction (APS, alpha=0.1)
+============================================================
+
+  Cal samples:  3172
+  Temperature:  0.1000  (ConfTS optimized)
+  Threshold:    1.0000  (V2 was 1.0 — broken)
+  Score mean:   0.9950
+  Score std:    0.0288
+
+  [Calibration]
+  Coverage:     0.8641  (target>=0.90)
+  Singleton:    2191/3172 (69.1%)
+  Ambiguous:    981/3172 (30.9%)
+
+  [Test Verification]
+  Coverage:     0.8426  (NOT MET)
+  Singleton:    1433/2116 (67.7%)
+  Ambiguous:    683/2116 (32.3%)
+
+
+======================================================================
+code_cells[14]: # Cell 14: Export All Artifacts
+======================================================================
+1. Model:      /kaggle/working/mini_gat_v3.pt  (9326 KB)
+2. Threshold:  /kaggle/working/decision_threshold_v3.json
+3. Calibration:/kaggle/working/conformal_calibration_v3.json
+4. Config:     /kaggle/working/graph_config_v3.json
+
+All artifacts in /kaggle/working
+
+
+======================================================================
+code_cells[15]: # Cell 15: Final Summary Report
+======================================================================
+======================================================================
+  SEC-C MiniGINv3 — Training Report
+======================================================================
+
+  MODEL:   MiniGINv3 (3-layer GIN), 2,375,046 params
+  INPUT:   774 (768 GCB mean-pool + 6 structural)
+  ARCH:    GIN×3 hidden=384, residual, BN, dual-pool
+
+  DATA:    21150 graphs (10575 vuln, 10575 safe)
+  SRCS:    BigVul, CVEfixes-Py, CrossVul, Devign, DiverseVul, Juliet-C, VUDENC
+  SPLIT:   12689/3173/3172/2116
+
+  TRAIN:   WeightedCE(vuln×1.5), smoothing=0.0
+           LR=0.0003, warmup=5ep, patience=20
+  BEST:    epoch 41, val_F1=0.7623
+
+  THRESHOLD: 0.32 (F1-optimal on val set, V2 used 0.5)
+
+  TEST METRICS (threshold=0.32):
+    Accuracy:  0.6999
+    Precision: 0.6430
+    Recall:    0.8989
+    F1:        0.7497
+    AUC-ROC:   0.7813
+
+  PER-LANGUAGE F1:
+    python          0.8358
+    javascript      0.6842
+    java            0.6667
+    c_cpp           0.7504
+    go              0.5714
+
+  CONFORMAL (alpha=0.1):
+    APS Threshold: 1.0000
+    Coverage:      0.8426 (>=0.90: NO)
+    Singleton:     67.7%  Ambiguous: 32.3%
+
+  CONFTS (V5 NEW):
+    Temperature: 0.100
+
+  V4 -> V5 changes:
+    Smoothing:  0.1 -> 0.0 (was compressing logit gaps)
+    PrimeVul:   Fixed (JSONL direct load)
+    VUDENC:     Fixed (list label handling)
+    CVEfixes:   Fixed (list label handling)
+    ConfTS:     NEW (post-hoc temperature for smaller pred sets)
+
+  V2 -> V3 changes:
+    Loss:       FocalLoss(γ=2) -> CE+smooth(0.1)
+    LR:         1e-3 -> 3e-4 + warmup
+    Balance:    2.0:1 -> 1.0:1 strict per-language
+    Arch:       GAT(2L,298K) -> GIN(3L,2375K) + residual + BN
+    Pooling:    global_mean -> mean+add concat
+    Embedding:  CLS -> mean_pool (fixes MISSING pooler warning)
+    Threshold:  argmax(0.5) -> F1-optimal(0.32)
+    Datasets:   +BigVul (CWE-labeled C/C++)
+    Juliet:     1000 -> 6000 (reduce synthetic bias)
+======================================================================
+
+
+======================================================================
+code_cells[16]: # Cell 16: Zip all artifacts for single-click download from Kaggle
+======================================================================
+Zipping artifacts -> sec_c_gnn_v4_artifacts.zip
+File                                           Size  Description
+---------------------------------------------------------------------------
+  mini_gat_v3.pt                              9326K  model weights — load with MiniGINv3
+  mini_gat_v3_best.pt                         9327K  best val-F1 checkpoint
+  decision_threshold_v3.json                     0K  F1-optimal decision threshold
+  conformal_calibration_v3.json                  2K  APS conformal calibration + all metrics
+  graph_config_v3.json                           2K  model config + dataset info (framework wiring)
+  eda_overview_v3.png                          101K  dataset EDA
+  training_curves_v3.png                       144K  loss / F1 training curves
+  threshold_calibration_v3.png                  97K  threshold search
+  evaluation_plots_v3.png                       98K  ROC, confusion matrix, per-CWE F1
+  confts_temperature_v5.png                    104K  ConfTS temperature search (V5)
+  conformal_diagnostics_v3.png                  91K  APS score histogram, set sizes, coverage
+  mini_gat_v3_epoch050.pt                     9327K  epoch checkpoint
+  mini_gat_v3_epoch060.pt                     9327K  epoch checkpoint
+
+Zip: sec_c_gnn_v4_artifacts.zip  (34.3 MB)
+Path: /kaggle/working/sec_c_gnn_v4_artifacts.zip
+
+Download: Kaggle Output tab -> sec_c_gnn_v4_artifacts.zip

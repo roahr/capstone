@@ -1,0 +1,71 @@
+{
+  "alpha": 0.1,
+  "threshold": 1.0,
+  "decision_threshold": 0.32,
+  "conformal_temperature": 0.1,
+  "n_calibration": 3172,
+  "empirical_coverage": 0.8641235813366961,
+  "test_coverage": 0.8426275992438563,
+  "class_names": [
+    "safe",
+    "vulnerable"
+  ],
+  "singleton_rate": 0.6907313997477932,
+  "ambiguous_rate": 0.3092686002522068,
+  "test_singleton_rate": 0.6772211720226843,
+  "test_ambiguous_rate": 0.3227788279773157,
+  "mean_set_size": 1.3092686002522067,
+  "score_stats": {
+    "mean": 0.9949573824677762,
+    "std": 0.0288499416267911,
+    "median": 1.0,
+    "min": 0.502206027507782,
+    "max": 1.0000001192092896
+  },
+  "test_metrics": {
+    "accuracy": 0.6999054820415879,
+    "precision": 0.6430020283975659,
+    "recall": 0.8988657844990549,
+    "f1": 0.7497043752463539,
+    "auc_roc": 0.7813325245407213
+  },
+  "per_language_metrics": {
+    "python": {
+      "accuracy": 0.8166666666666667,
+      "precision": 0.7567567567567568,
+      "recall": 0.9333333333333333,
+      "f1": 0.835820895522388
+    },
+    "javascript": {
+      "accuracy": 0.5384615384615384,
+      "precision": 0.52,
+      "recall": 1.0,
+      "f1": 0.6842105263157895
+    },
+    "java": {
+      "accuracy": 0.5,
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.6666666666666666
+    },
+    "c_cpp": {
+      "accuracy": 0.702,
+      "precision": 0.6455331412103746,
+      "recall": 0.896,
+      "f1": 0.7504187604690118
+    },
+    "go": {
+      "accuracy": 0.4,
+      "precision": 0.4444444444444444,
+      "recall": 0.8,
+      "f1": 0.5714285714285714
+    }
+  },
+  "training_history": {
+    "total_epochs": 61,
+    "best_epoch": 41,
+    "best_val_f1": 0.7622906537007024,
+    "best_val_loss": 1.064225310087204
+  },
+  "version": "v3"
+}

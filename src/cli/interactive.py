@@ -221,12 +221,12 @@ def print_status() -> None:
     else:
         table.add_row("  Joern", "[dim]Not Installed[/dim]", "Optional: run scripts/setup_joern.sh")
 
-    gnn_model = Path("data/models/mini_gat.pt")
+    gnn_model = Path("data/models/mini_gin_v3.pt")
     if gnn_model.exists():
         size_kb = gnn_model.stat().st_size / 1024
-        table.add_row("  Mini-GAT Model", "[green]Trained[/green]", f"{size_kb:.0f} KB")
+        table.add_row("  MiniGINv3 Model", "[green]Trained[/green]", f"{size_kb:.0f} KB")
     else:
-        table.add_row("  Mini-GAT Model", "[dim]Not Trained[/dim]", "Deferred to GNN phase")
+        table.add_row("  MiniGINv3 Model", "[dim]Not Trained[/dim]", "Run GNN training notebook")
 
     # -- Stage 3: LLM --
     table.add_row("[bold]Stage 3: LLM[/bold]", "", "")

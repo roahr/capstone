@@ -153,27 +153,25 @@ class GraphValidator:
             return
 
         # -- Load model ------------------------------------------------
-        from src.graph.gnn.mini_gat import MiniGAT
+        from src.graph.gnn.mini_gin_v3 import MiniGINv3
 
-        self._model = MiniGAT(
-            input_dim=int(gnn_cfg.get("input_dim", 773)),
-            hidden_dim=int(gnn_cfg.get("hidden_dim", 256)),
-            output_dim=int(gnn_cfg.get("output_dim", 128)),
-            num_heads_l1=int(gnn_cfg.get("num_heads_l1", 4)),
-            num_heads_l2=int(gnn_cfg.get("num_heads_l2", 4)),
-            dropout=float(gnn_cfg.get("dropout", 0.3)),
+        self._model = MiniGINv3(
+            input_dim=int(gnn_cfg.get("input_dim", 774)),
+            hidden_dim=int(gnn_cfg.get("hidden_dim", 384)),
+            num_gin_layers=int(gnn_cfg.get("num_gin_layers", 3)),
+            dropout=float(gnn_cfg.get("dropout", 0.35)),
             num_classes=int(gnn_cfg.get("num_classes", 2)),
         )
 
         state_dict = torch.load(
             model_path,
             map_location=torch.device("cpu"),
-            weights_only=True,
+            weights_only=False,
         )
         self._model.load_state_dict(state_dict)
         self._model.eval()
         logger.info(
-            "MiniGAT loaded from %s (%s params)",
+            "MiniGINv3 loaded from %s (%s params)",
             model_path,
             f"{self._model.parameter_count()['trainable']:,}",
         )
@@ -212,19 +210,28 @@ class GraphValidator:
             alpha = float(cal_data.get("alpha", 0.1))
             self._conformal = ConformalPredictor(alpha=alpha)
             # Directly set internal state from saved calibration
-            self._conformal._quantile_threshold = float(
-                cal_data["quantile_threshold"]
+            # Support both key names for backward compatibility
+            threshold = cal_data.get(
+                "quantile_threshold",
+                cal_data.get("threshold", 1.0),
             )
+            self._conformal._quantile_threshold = float(threshold)
             self._conformal._calibration_size = int(
-                cal_data.get("calibration_size", 0)
+                cal_data.get("calibration_size",
+                             cal_data.get("n_calibration", 0))
             )
             self._conformal._is_calibrated = True
 
+            # Load ConfTS temperature if present
+            temperature = float(cal_data.get("conformal_temperature", 1.0))
+            self._conformal._temperature = temperature
+
             logger.info(
                 "Conformal calibration loaded: alpha=%.2f, "
-                "threshold=%.4f (from %s)",
+                "threshold=%.4f, temperature=%.4f (from %s)",
                 alpha,
                 self._conformal._quantile_threshold,
+                temperature,
                 cal_path,
             )
         except Exception as exc:
@@ -380,10 +387,13 @@ class GraphValidator:
         topo_features = self._extract_topology_features(sliced, finding)
 
         # 4. GNN inference (if model available)
-        gnn_result = self._run_gnn(sliced)
+        lang = finding.language.value if finding.language else "python"
+        gnn_result = self._run_gnn(sliced, language=lang)
 
         # 5. Conformal prediction
-        conformal_set, conformal_coverage = self._run_conformal(sliced)
+        conformal_set, conformal_coverage = self._run_conformal(
+            sliced, language=lang
+        )
 
         # 6. Assemble GraphValidation
         gv = GraphValidation(
@@ -544,8 +554,10 @@ class GraphValidator:
     # Step 4: GNN inference
     # ------------------------------------------------------------------
 
-    def _run_gnn(self, cpg: nx.DiGraph) -> dict[str, Any]:
-        """Run Mini-GAT forward pass on the CPG.
+    def _run_gnn(
+        self, cpg: nx.DiGraph, language: str = "python"
+    ) -> dict[str, Any]:
+        """Run MiniGINv3 forward pass on the CPG.
 
         Returns a dict with ``risk_score`` (float in [0,1]) and
         ``attention_weights`` (dict mapping edge descriptions to
@@ -558,7 +570,7 @@ class GraphValidator:
             torch, F = _ensure_torch()
 
             # Build PyG Data
-            data = self._data_builder.build(cpg)
+            data = self._data_builder.build(cpg, language=language)
 
             # Ensure batch tensor exists
             batch = torch.zeros(
@@ -606,7 +618,7 @@ class GraphValidator:
     # ------------------------------------------------------------------
 
     def _run_conformal(
-        self, cpg: nx.DiGraph
+        self, cpg: nx.DiGraph, language: str = "python"
     ) -> tuple[list[str], float]:
         """Produce a conformal prediction set for the graph.
 
@@ -627,7 +639,7 @@ class GraphValidator:
 
         try:
             torch, _ = _ensure_torch()
-            data = self._data_builder.build(cpg)
+            data = self._data_builder.build(cpg, language=language)
             batch = torch.zeros(data.x.size(0), dtype=torch.long)
 
             pred_set, coverage = self._conformal.predict(

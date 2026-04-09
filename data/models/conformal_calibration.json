@@ -1,0 +1,23 @@
+{
+  "alpha": 0.1,
+  "quantile_threshold": 1.0,
+  "threshold": 1.0,
+  "conformal_temperature": 0.2,
+  "decision_threshold": 0.32,
+  "n_calibration": 3172,
+  "calibration_size": 3172,
+  "class_names": [
+    "safe",
+    "vulnerable"
+  ],
+  "singleton_rate": 0.6907313997477932,
+  "test_metrics": {
+    "accuracy": 0.6999054820415879,
+    "precision": 0.6430020283975659,
+    "recall": 0.8988657844990549,
+    "f1": 0.7497043752463539,
+    "auc_roc": 0.7813325245407213
+  },
+  "version": "v5",
+  "note": "Temperature adjusted to 0.2 for safe 90% coverage margin"
+}

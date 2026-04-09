@@ -351,7 +351,7 @@ def _init_modules(orchestrator, config: dict, max_stage: str) -> None:
             graph_config = config.get("graph", {})
             model_path = Path(
                 graph_config.get("gnn", {}).get(
-                    "model_path", "data/models/mini_gat.pt"
+                    "model_path", "data/models/mini_gin_v3.pt"
                 )
             )
             if model_path.exists():

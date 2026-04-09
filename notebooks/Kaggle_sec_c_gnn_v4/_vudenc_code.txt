@@ -1,0 +1,67 @@
+L162: # ── 7. VUDENC Python — NEW correct ID ────────────────────────────────────────
+L163: # Schema: lines/raw_lines/label/type are all LISTS (per-statement).
+L164: # We join raw_lines into a function string and derive a binary label:
+L165: #   label = 1 if ANY statement in the function is vulnerable, else 0.
+L166: print("=" * 60)
+L167: print("  7. VUDENC Python (DetectVul/Vudenc, 15.8K statement-level CVE)")
+L168: try:
+L169:     _vu_s = []
+L170:     for _split in ["train", "test"]:
+L171:         try:
+L172:             _vu = load_dataset("DetectVul/Vudenc", split=_split)
+L173:             for row in _vu:
+L174:                 raw = row.get("raw_lines", []) or row.get("lines", []) or []
+L175:                 labels = row.get("label", []) or []
+L176:                 if not isinstance(raw, list) or len(raw) < 3:
+L177:                     continue
+L178:                 code = "
+L179: ".join(raw)
+L180:                 label = 1 if any(l == 1 for l in labels) else 0
+L181:                 _vu_s.append(make_sample(code, label, "unknown", "python", "VUDENC"))
+L182:         except Exception as _e2:
+L183:             print(f"    VUDENC split={_split}: {_e2}")
+L184:     collect("VUDENC", [s for s in _vu_s if s], CONFIG["max_vudenc"])
+L185: except Exception as _e:
+L186:     print(f"  VUDENC FAILED: {_e}")
+L187: 
+L188: # ── 8. CVEfixes Python — FIXED ID ────────────────────────────────────────────
+L189: # Schema: same as VUDENC — lines/raw_lines/label/type are all LISTS (per-statement).
+L190: print("=" * 60)
+L191: print("  8. CVEfixes Python (DetectVul/CVEFixes, 5.7K statement-level)")
+L192: try:
+L193:     _cf_s = []
+L194:     for _split in ["train", "test"]:
+L195:         try:
+L196:             _cf = load_dataset("DetectVul/CVEFixes", split=_split)
+L197:             for row in _cf:
+L198:                 raw = row.get("raw_lines", []) or row.get("lines", []) or []
+L199:                 labels = row.get("label", []) or []
+L200:                 if not isinstance(raw, list) or len(raw) < 3:
+L201:                     continue
+L202:                 code = "
+L203: ".join(raw)
+L204:                 label = 1 if any(l == 1 for l in labels) else 0
+L205:                 _cf_s.append(make_sample(code, label, "unknown", "python", "CVEfixes-Py"))
+L206:         except Exception as _e2:
+L207:             print(f"    CVEFixes split={_split}: {_e2}")
+L208:     collect("CVEfixes-Py", [s for s in _cf_s if s], CONFIG["max_cvefixes"])
+L209: except Exception as _e:
+L210:     print(f"  CVEfixes-Py FAILED: {_e}")
+L211: 
+L212: # ── Summary ──────────────────────────────────────────────────────────────────
+L213: print(f"\nRaw total: {len(all_samples)} samples")
+L214: _lbl_c = Counter(s["label"] for s in all_samples)
+L215: _lng_c = Counter(s["language"] for s in all_samples)
+L216: _cwe_k = sum(1 for s in all_samples if s["cwe"] != "unknown")
+L217: print(f"  Labels:    vuln={_lbl_c[1]}, safe={_lbl_c[0]}")
+L218: print(f"  CWE known: {_cwe_k}/{len(all_samples)} ({100*_cwe_k/max(len(all_samples),1):.1f}%)")
+L219: for _lang, _n in sorted(_lng_c.items()):
+L220:     _vn = sum(1 for s in all_samples if s["language"]==_lang and s["label"]==1)
+L221:     _sn = sum(1 for s in all_samples if s["language"]==_lang and s["label"]==0)
+L222:     print(f"  {_lang:<20s} {_n:5d} (v={_vn}, s={_sn})")
+L223: 
+L224: _src_c = Counter(s["source"] for s in all_samples)
+L225: print("\nSource breakdown:")
+L226: for _src, _n in _src_c.most_common():
+L227:     print(f"  {_src:<25s} {_n:5d}")
+L228: 

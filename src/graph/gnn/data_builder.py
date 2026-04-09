@@ -59,8 +59,8 @@ class GraphDataBuilder:
     MAX_NODES: int = 200
 
     EMBEDDING_DIM: int = 768
-    NODE_FEATURE_DIM: int = 5
-    TOTAL_DIM: int = EMBEDDING_DIM + NODE_FEATURE_DIM  # 773
+    NODE_FEATURE_DIM: int = 6
+    TOTAL_DIM: int = EMBEDDING_DIM + NODE_FEATURE_DIM  # 774
 
     def __init__(
         self,
@@ -78,14 +78,19 @@ class GraphDataBuilder:
     # Public API
     # ------------------------------------------------------------------
 
-    def build(self, cpg: nx.DiGraph, label: int | None = None) -> Any:
+    def build(
+        self,
+        cpg: nx.DiGraph,
+        label: int | None = None,
+        language: str = "python",
+    ) -> Any:
         """Convert a CPG into a PyG ``Data`` object.
 
         Steps:
             1. Truncate to ``max_nodes`` by BFS from highest-degree node.
             2. Embed nodes via GraphCodeBERT (768-dim) or random fallback.
-            3. Extract per-node features (5-dim).
-            4. Concatenate -> ``(num_nodes, 773)``.
+            3. Extract per-node features (6-dim).
+            4. Concatenate -> ``(num_nodes, 774)``.
             5. Build COO ``edge_index``.
             6. Return ``Data(x, edge_index, y)``.
 
@@ -94,6 +99,7 @@ class GraphDataBuilder:
                 backward slice of one).
             label: Optional integer label (0 = safe, 1 = vulnerable).
                 Used during training; ``None`` at inference time.
+            language: Programming language of the source code.
 
         Returns:
             A ``torch_geometric.data.Data`` instance.
@@ -121,10 +127,10 @@ class GraphDataBuilder:
         # 2. Node embeddings (768-dim)
         embeddings = self._embed_nodes(graph, num_nodes)
 
-        # 3. Hand-crafted features (5-dim)
-        node_features = self.node_feature_extractor.extract(graph)
+        # 3. Hand-crafted features (6-dim)
+        node_features = self.node_feature_extractor.extract(graph, language=language)
 
-        # 4. Concatenate -> (num_nodes, 773)
+        # 4. Concatenate -> (num_nodes, 774)
         x = torch.cat([embeddings, node_features], dim=1)
 
         # 5. Build edge_index (COO format)

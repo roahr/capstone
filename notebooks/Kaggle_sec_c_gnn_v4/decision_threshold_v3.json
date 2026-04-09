@@ -1,0 +1,8 @@
+{
+  "decision_threshold": 0.53375,
+  "val_f1_at_threshold": 0.7626752961672002,
+  "val_precision": 0.6613657623944521,
+  "val_recall": 0.9006369426745856,
+  "version": "v3",
+  "note": "F1-optimal threshold found by grid search on val set. Use this instead of argmax."
+}

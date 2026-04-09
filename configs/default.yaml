@@ -56,21 +56,20 @@ graph:
     device: "cpu"  # or "cuda"
 
   gnn:
-    # Mini-GAT architecture
-    input_dim: 773  # 768 (GraphCodeBERT) + 5 (graph features)
-    hidden_dim: 256
-    output_dim: 128
-    num_heads_l1: 4
-    num_heads_l2: 4
-    dropout: 0.3
+    # MiniGINv3 architecture (V5: replaces Mini-GAT)
+    input_dim: 774  # 768 (GraphCodeBERT) + 6 (structural features)
+    hidden_dim: 384
+    num_gin_layers: 3
+    dropout: 0.35
     num_classes: 2
-    max_nodes: 200
-    model_path: "data/models/mini_gat.pt"
+    max_nodes: 300
+    model_path: "data/models/mini_gin_v3.pt"
 
   conformal:
     alpha: 0.1  # 90% coverage guarantee
     calibration_size: 0.2
     method: "aps"  # Adaptive Prediction Sets
+    temperature: 0.2  # ConfTS temperature (Dabah et al. 2024)
 
 # Module 3: LLM Dual-Agent Validation
 llm:

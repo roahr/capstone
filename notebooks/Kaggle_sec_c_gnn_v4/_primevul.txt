@@ -1,0 +1,154 @@
+trust_remote_code lines: [47, 62, 82, 101, 121, 139]
+
+L3: # Sources:
+L4: #   C/C++ real:      bstee615/bigvul | claudios/DiverseVul | google/code_x_glue_cc_defect_detection
+L5: #   C/C++ quality:   starsofchance/PrimeVul  (deduplicated, hard benchmark)
+L6: #   C/C++ synthetic: LorenzH/juliet_test_suite_c_1_3  (101K avail, was 150)
+L7: #   Multi-lang:      hitoshura25/crossvul  (was failing with wrong IDs)
+L8: #   Python:          DetectVul/Vudenc | DetectVul/CVEFixes
+L9: # ============================================================================
+L10: import hashlib, re, time, os
+L11: from collections import Counter, defaultdict
+L12: from datasets import load_dataset
+L13: 
+L14: all_samples = []
+L15: 
+L16: # ── Helpers ─────────────────────────────────────────────────────────────────
+L17: def make_sample(code, label, cwe, lang, source):
+L18:     """Return a sample dict or None if code is unusable."""
+L19:     if not code or not isinstance(code, str):
+
+---
+L91:     print(f"  Devign FAILED: {_e}")
+L92: 
+L93: # ── 4. PrimeVul — NEW ────────────────────────────────────────────────────────
+L94: print("=" * 60)
+L95: print("  4. PrimeVul (C/C++, 236K deduplicated, hardest benchmark)")
+L96: try:
+L97:     _pv_s = []
+L98:     for _split in ["train", "validation", "test"]:
+L99:         try:
+L100:             _pv = load_dataset("starsofchance/PrimeVul",
+L101:                                split=_split, trust_remote_code=True)
+L102:             for row in _pv:
+L103:                 code  = row.get("func", "") or ""
+L104:                 label = int(row.get("vul", 0))
+L105:                 cwe   = str(row.get("CWE ID", "unknown") or "unknown")
+L106:                 _pv_s.append(make_sample(code, label, cwe, "c_cpp", "PrimeVul"))
+L107:         except Exception as _e2:
+
+---
+L93: # ── 4. PrimeVul — NEW ────────────────────────────────────────────────────────
+L94: print("=" * 60)
+L95: print("  4. PrimeVul (C/C++, 236K deduplicated, hardest benchmark)")
+L96: try:
+L97:     _pv_s = []
+L98:     for _split in ["train", "validation", "test"]:
+L99:         try:
+L100:             _pv = load_dataset("starsofchance/PrimeVul",
+L101:                                split=_split, trust_remote_code=True)
+L102:             for row in _pv:
+L103:                 code  = row.get("func", "") or ""
+L104:                 label = int(row.get("vul", 0))
+L105:                 cwe   = str(row.get("CWE ID", "unknown") or "unknown")
+L106:                 _pv_s.append(make_sample(code, label, cwe, "c_cpp", "PrimeVul"))
+L107:         except Exception as _e2:
+L108:             print(f"    PrimeVul split={_split}: {_e2}")
+L109:     collect("PrimeVul", [s for s in _pv_s if s], CONFIG["max_primevul"])
+
+---
+L98:     for _split in ["train", "validation", "test"]:
+L99:         try:
+L100:             _pv = load_dataset("starsofchance/PrimeVul",
+L101:                                split=_split, trust_remote_code=True)
+L102:             for row in _pv:
+L103:                 code  = row.get("func", "") or ""
+L104:                 label = int(row.get("vul", 0))
+L105:                 cwe   = str(row.get("CWE ID", "unknown") or "unknown")
+L106:                 _pv_s.append(make_sample(code, label, cwe, "c_cpp", "PrimeVul"))
+L107:         except Exception as _e2:
+L108:             print(f"    PrimeVul split={_split}: {_e2}")
+L109:     collect("PrimeVul", [s for s in _pv_s if s], CONFIG["max_primevul"])
+L110: except Exception as _e:
+L111:     print(f"  PrimeVul FAILED: {_e}")
+L112: 
+L113: # ── 5. Juliet C/C++ — NEW large source ───────────────────────────────────────
+L114: print("=" * 60)
+
+---
+L104:                 label = int(row.get("vul", 0))
+L105:                 cwe   = str(row.get("CWE ID", "unknown") or "unknown")
+L106:                 _pv_s.append(make_sample(code, label, cwe, "c_cpp", "PrimeVul"))
+L107:         except Exception as _e2:
+L108:             print(f"    PrimeVul split={_split}: {_e2}")
+L109:     collect("PrimeVul", [s for s in _pv_s if s], CONFIG["max_primevul"])
+L110: except Exception as _e:
+L111:     print(f"  PrimeVul FAILED: {_e}")
+L112: 
+L113: # ── 5. Juliet C/C++ — NEW large source ───────────────────────────────────────
+L114: print("=" * 60)
+L115: print("  5. Juliet C/C++ (LorenzH/juliet_test_suite_c_1_3, 101K avail)")
+L116: try:
+L117:     _jc_s = []
+L118:     for _split in ["train", "test"]:
+L119:         try:
+L120:             _jc = load_dataset("LorenzH/juliet_test_suite_c_1_3",
+
+---
+L106:                 _pv_s.append(make_sample(code, label, cwe, "c_cpp", "PrimeVul"))
+L107:         except Exception as _e2:
+L108:             print(f"    PrimeVul split={_split}: {_e2}")
+L109:     collect("PrimeVul", [s for s in _pv_s if s], CONFIG["max_primevul"])
+L110: except Exception as _e:
+L111:     print(f"  PrimeVul FAILED: {_e}")
+L112: 
+L113: # ── 5. Juliet C/C++ — NEW large source ───────────────────────────────────────
+L114: print("=" * 60)
+L115: print("  5. Juliet C/C++ (LorenzH/juliet_test_suite_c_1_3, 101K avail)")
+L116: try:
+L117:     _jc_s = []
+L118:     for _split in ["train", "test"]:
+L119:         try:
+L120:             _jc = load_dataset("LorenzH/juliet_test_suite_c_1_3",
+L121:                                split=_split, trust_remote_code=True)
+L122:             for row in _jc:
+
+---
+L107:         except Exception as _e2:
+L108:             print(f"    PrimeVul split={_split}: {_e2}")
+L109:     collect("PrimeVul", [s for s in _pv_s if s], CONFIG["max_primevul"])
+L110: except Exception as _e:
+L111:     print(f"  PrimeVul FAILED: {_e}")
+L112: 
+L113: # ── 5. Juliet C/C++ — NEW large source ───────────────────────────────────────
+L114: print("=" * 60)
+L115: print("  5. Juliet C/C++ (LorenzH/juliet_test_suite_c_1_3, 101K avail)")
+L116: try:
+L117:     _jc_s = []
+L118:     for _split in ["train", "test"]:
+L119:         try:
+L120:             _jc = load_dataset("LorenzH/juliet_test_suite_c_1_3",
+L121:                                split=_split, trust_remote_code=True)
+L122:             for row in _jc:
+L123:                 bad_code  = row.get("bad", "") or ""
+
+---
+L109:     collect("PrimeVul", [s for s in _pv_s if s], CONFIG["max_primevul"])
+L110: except Exception as _e:
+L111:     print(f"  PrimeVul FAILED: {_e}")
+L112: 
+L113: # ── 5. Juliet C/C++ — NEW large source ───────────────────────────────────────
+L114: print("=" * 60)
+L115: print("  5. Juliet C/C++ (LorenzH/juliet_test_suite_c_1_3, 101K avail)")
+L116: try:
+L117:     _jc_s = []
+L118:     for _split in ["train", "test"]:
+L119:         try:
+L120:             _jc = load_dataset("LorenzH/juliet_test_suite_c_1_3",
+L121:                                split=_split, trust_remote_code=True)
+L122:             for row in _jc:
+L123:                 bad_code  = row.get("bad", "") or ""
+L124:                 good_code = row.get("good", "") or ""
+L125:                 cwe_num   = str(row.get("class", "") or "")
+
+---
