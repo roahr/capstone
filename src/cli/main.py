@@ -118,7 +118,8 @@ def main(ctx: typer.Context) -> None:
 @app.command()
 def scan(
     target: Optional[str] = typer.Argument(None, help="Path to local code directory or file"),
-    github: Optional[str] = typer.Option(None, "--github", "-g", help="GitHub repo (owner/repo)"),
+    # github: Optional[str] = typer.Option(None, "--github", "-g", help="GitHub repo (owner/repo)"),  # Disabled for demo -- requires GITHUB_TOKEN
+    github: Optional[str] = typer.Option(None, "--github", "-g", hidden=True, help="[disabled] GitHub repo scanning"),
     stage: str = typer.Option("llm", "--stage", "-s", help="Max stage: sast, graph, llm"),
     languages: Optional[str] = typer.Option(None, "--languages", "-l", help="Comma-separated languages"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="SARIF output file path"),

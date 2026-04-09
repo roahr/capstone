@@ -51,7 +51,7 @@ class SecCCompleter(Completer):
     def __init__(self):
         self.commands = {
             "/scan": "Scan a local directory or file for vulnerabilities",
-            "/scan --github": "Scan a GitHub repository",
+            # "/scan --github": "Scan a GitHub repository",  # Disabled for demo
             "/scan --stage sast": "Run SAST stage only",
             "/scan --stage graph": "Run up to Graph stage",
             "/scan --stage llm": "Run full pipeline",
@@ -149,7 +149,7 @@ def print_help() -> None:
 
     commands = [
         ("/scan <path>", "Scan local code (full cascade)"),
-        ("/scan --github <owner/repo>", "Scan a GitHub repository"),
+        # ("/scan --github <owner/repo>", "Scan a GitHub repository"),  # Disabled for demo
         ("/scan --stage <sast|graph|llm>", "Run up to a specific stage"),
         ("/scan --languages <py,js,java>", "Scan specific languages only"),
         ("/scan --output <file.sarif>", "Save SARIF report to file"),
