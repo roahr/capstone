@@ -26,12 +26,13 @@ The GNN (Module 2) produces two outputs:
 
 Five training iterations were conducted on Kaggle T4 GPUs between March-April 2026.
 
-## Current Best Model
+## Current Best Model (V6 Deployed)
 
 - **Architecture**: MiniGINv3 (3-layer GIN, 2.375M params)
 - **Test F1**: 0.750 (C/C++ primary), Python F1: 0.836
-- **Singleton rate**: 69.1% (with ConfTS T=0.10)
-- **Artifacts**: `notebooks/Kaggle_sec_c_gnn_v4_improved/`
+- **ConfTS**: T=0.95, threshold=0.95 (natural uncertainty routing)
+- **Live cascade**: 85% SAST, 2% GNN, 12% LLM across 184 findings / 15 repos
+- **Artifacts**: `data/models/mini_gin_v3.pt`, `data/models/conformal_calibration.json`
 
 ## Key Artifacts
 

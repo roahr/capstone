@@ -32,10 +32,10 @@ ruff format src/
 
 # CLI commands
 sec-c scan <path>                          # Full cascade scan
-sec-c scan --github <owner/repo>           # Scan GitHub repo
+sec-c scan --dashboard                     # Open interactive HTML dashboard
 sec-c scan --stage sast                    # SAST-only (fast)
 sec-c scan --stage graph                   # Up to Graph stage
-sec-c scan --languages py,js --html        # Filter languages, HTML output
+sec-c scan --languages py,js --dashboard    # Filter languages, open dashboard
 sec-c report <sarif_file>                  # Display existing SARIF report
 sec-c status                               # Show tool availability
 sec-c                                      # Interactive REPL mode

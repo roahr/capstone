@@ -8,9 +8,9 @@ Supports two modes:
 Usage:
     sec-c                                Launch interactive mode
     sec-c scan <path>                    Scan local code (full cascade)
-    sec-c scan --github <owner/repo>     Scan a GitHub repository
+    sec-c scan --stage graph             Scan up to Graph stage
     sec-c scan --stage sast              Run SAST only
-    sec-c scan --html                    Generate interactive HTML report
+    sec-c scan --dashboard                   Open interactive HTML dashboard
     sec-c report <sarif_file>            Display a SARIF report
     sec-c status                         Show tool availability
     sec-c config                         Show current configuration
@@ -123,15 +123,20 @@ def scan(
     stage: str = typer.Option("llm", "--stage", "-s", help="Max stage: sast, graph, llm"),
     languages: Optional[str] = typer.Option(None, "--languages", "-l", help="Comma-separated languages"),
     output: Optional[str] = typer.Option(None, "--output", "-o", help="SARIF output file path"),
-    html_report: bool = typer.Option(False, "--html", help="Generate interactive HTML report"),
+    dashboard: bool = typer.Option(False, "--dashboard", "-d", help="Generate interactive HTML dashboard"),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Verbose output"),
     config_file: Optional[str] = typer.Option(None, "--config", "-c", help="Config file path"),
 ) -> None:
     """Run a SEC-C security scan with uncertainty-driven cascade."""
     setup_logging(verbose)
 
-    if not target and not github:
-        console.print("[red]Error: Provide either a local path or --github repo[/red]")
+    if github:
+        console.print("[yellow]Note: --github repo scanning is planned for a future release.[/yellow]")
+        console.print("[yellow]Please provide a local path instead.[/yellow]")
+        raise typer.Exit(1)
+
+    if not target:
+        console.print("[red]Error: Provide a local path to scan.[/red]")
         raise typer.Exit(1)
 
     config = load_config(config_file)
@@ -173,14 +178,14 @@ def scan(
         console.print(f"\n  [green]OK[/green] SARIF report saved to [bold]{output}[/bold]")
 
     # HTML report
-    if html_report:
+    if dashboard:
         from src.reporting.html_reporter import HTMLReporter
         html_gen = HTMLReporter(auto_open=True)
         html_path = html_gen.generate(scan_result)
         console.print(f"\n  [green]OK[/green] HTML report opened: [bold cyan]{html_path}[/bold cyan]")
     elif scan_result.total_findings > 0:
         console.print(
-            "\n  [dim]Run with[/dim] [bold cyan]--html[/bold cyan] "
+            "\n  [dim]Run with[/dim] [bold cyan]--dashboard[/bold cyan] "
             "[dim]to open an interactive web dashboard[/dim]"
         )
 
@@ -188,27 +193,43 @@ def scan(
 @app.command()
 def report(
     sarif_file: str = typer.Argument(..., help="Path to SARIF file to display"),
-    html: bool = typer.Option(False, "--html", help="Generate HTML report"),
+    console_mode: bool = typer.Option(False, "--console", help="Console output instead of dashboard"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """Display a formatted report from an existing SARIF file."""
+    """Display a formatted report from an existing SARIF file (opens dashboard by default)."""
     setup_logging(verbose)
+
+    import json
+    from pathlib import Path
+
+    if not Path(sarif_file).exists():
+        console.print(f"[red]Error: File not found: {sarif_file}[/red]")
+        raise typer.Exit(1)
 
     from src.sast.sarif.parser import SARIFParser
     from src.sast.sarif.schema import ScanResult
 
     parser = SARIFParser()
-    findings = parser.parse_file(sarif_file)
+    try:
+        findings = parser.parse_file(sarif_file)
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Error: Invalid JSON in {sarif_file}: {e}[/red]")
+        raise typer.Exit(1)
+    except ValueError as e:
+        console.print(f"[red]Error: Invalid SARIF format: {e}[/red]")
+        raise typer.Exit(1)
+
     result = ScanResult(findings=findings, scan_target=sarif_file)
 
-    if html:
+    if console_mode:
+        from src.reporting.console_reporter import ConsoleReporter
+        ConsoleReporter(verbose=verbose).report(result)
+    else:
+        # Default: open dashboard
         from src.reporting.html_reporter import HTMLReporter
         html_gen = HTMLReporter(auto_open=True)
         html_path = html_gen.generate(result)
-        console.print(f"  [green]OK[/green] HTML report opened: [bold cyan]{html_path}[/bold cyan]")
-    else:
-        from src.reporting.console_reporter import ConsoleReporter
-        ConsoleReporter(verbose=verbose).report(result)
+        console.print(f"  [green]OK[/green] Dashboard opened: [bold cyan]{html_path}[/bold cyan]")
 
 
 @app.command("status")
@@ -229,16 +250,6 @@ def show_providers() -> None:
     console.print()
     from src.cli.interactive import print_providers
     print_providers()
-
-
-@app.command("models")
-def show_models() -> None:
-    """List available models per LLM provider."""
-    from src.cli.banner import MINI_BANNER
-    console.print(MINI_BANNER)
-    console.print()
-    from src.cli.interactive import print_models
-    print_models()
 
 
 @app.command("version")

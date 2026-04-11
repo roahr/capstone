@@ -327,7 +327,7 @@ sec-c status
 sec-c scan tests/fixtures/vulnerable_python.py --stage graph
 
 # Full 3-stage cascade with HTML dashboard
-sec-c scan sample_testcases/python/ --stage llm --html
+sec-c scan sample_testcases/python/ --stage llm --dashboard
 
 # Check all components
 sec-c version

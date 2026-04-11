@@ -128,37 +128,150 @@ class ConsoleReporter:
             self._print_detailed_findings(result)
 
     def _print_detailed_findings(self, result: ScanResult) -> None:
-        """Print detailed finding information in verbose mode."""
+        """Print detailed finding information as rich cards in verbose mode."""
         confirmed = [f for f in result.findings if f.verdict == Verdict.CONFIRMED]
         likely = [f for f in result.findings if f.verdict == Verdict.LIKELY]
 
         for f in confirmed + likely:
-            self.console.print(f"\n{'='*60}")
-            self.console.print(
-                f"[{VERDICT_COLORS[f.verdict]}]{f.verdict.value.upper()}[/] "
-                f"[{SEVERITY_COLORS[f.severity]}]{f.severity.value.upper()}[/] "
-                f"{f.cwe_id} ({f.cwe_name})"
-            )
-            self.console.print(f"Location: {f.location.display}")
-            self.console.print(f"Rule: {f.rule_id}")
-            self.console.print(f"Fused Score: {f.fused_score:.3f}")
+            verdict_color = VERDICT_COLORS.get(f.verdict, "white")
+            sev_color = SEVERITY_COLORS.get(f.severity, "white")
+
+            # Build card content
+            card = Text()
+            card.append(f"Location: {f.location.display}\n", style="dim")
+            card.append("Stage: ", style="dim")
+            card.append(f"{f.stage_resolved.value}", style="bold")
+            card.append(f" | Fused: {f.fused_score:.2f}", style="dim")
+            card.append(f" | SAST Conf: {f.sast_confidence:.2f}\n", style="dim")
+
+            if f.cvss_base_score:
+                cvss_style = "bold red" if f.cvss_severity in ("critical", "high") else ("yellow" if f.cvss_severity == "medium" else "cyan")
+                card.append("CVSS: ", style="dim")
+                card.append(f"{f.cvss_base_score:.1f} {(f.cvss_severity or '').upper()}", style=cvss_style)
+                card.append("\n")
 
             if f.location.snippet:
-                self.console.print(f"\nCode: {f.location.snippet}")
+                card.append("\n")
+                for i, line in enumerate(f.location.snippet.strip().split("\n")[:6]):
+                    line_num = (f.location.start_line or 1) + i
+                    card.append(f"  {line_num:>4} | ", style="dim")
+                    card.append(f"{line}\n")
 
             if f.nl_explanation:
-                self.console.print(f"\n{f.nl_explanation}")
+                card.append(f"\n{f.nl_explanation}\n")
 
             if f.remediation:
-                self.console.print(f"\n[green]Remediation:[/green] {f.remediation}")
+                card.append("\nRemediation: ", style="green")
+                card.append(f"{f.remediation}\n")
+
+            # Determine border color from verdict
+            border_map = {
+                Verdict.CONFIRMED: "red",
+                Verdict.LIKELY: "yellow",
+                Verdict.POTENTIAL: "cyan",
+                Verdict.SAFE: "green",
+            }
+            border = border_map.get(f.verdict, "white")
+
+            title = (
+                f"{f.cwe_id}: {f.cwe_name or f.rule_id}"
+                f" --- {f.verdict.value.upper()}"
+            )
+            if f.cvss_base_score:
+                title += f" --- CVSS {f.cvss_base_score:.1f} {(f.cvss_severity or '').upper()}"
+
+            self.console.print(Panel(
+                card,
+                title=title,
+                title_align="left",
+                border_style=border,
+                padding=(1, 2),
+                safe_box=self._safe_box,
+            ))
 
     def _print_cascade_stats(self, result: ScanResult) -> None:
-        """Print cascade efficiency statistics."""
+        """Print cascade efficiency with ASCII cascade flow visualization."""
         total = result.total_findings
         if total == 0:
             return
 
-        stats_table = Table(title="\nCascade Statistics", show_header=True, header_style="bold cyan", safe_box=self._safe_box)
+        # ASCII cascade flow
+        sast_r = result.resolved_at_sast
+        graph_r = result.resolved_at_graph
+        llm_r = result.resolved_at_llm
+        unresolved = result.unresolved
+
+        sast_pct = f"{sast_r / total * 100:.0f}%" if total > 0 else "0%"
+        graph_pct = f"{graph_r / total * 100:.0f}%" if total > 0 else "0%"
+        llm_pct = f"{llm_r / total * 100:.0f}%" if total > 0 else "0%"
+
+        # Escalated counts
+        esc_to_graph = total - sast_r
+        esc_to_llm = esc_to_graph - graph_r
+
+        flow = Text()
+        flow.append("\n")
+        # Flow line
+        flow.append("  Source", style="dim")
+        flow.append("  -->  ", style="dim")
+        flow.append("SAST", style="bold green")
+        flow.append("  -->  ", style="dim")
+        flow.append("Graph", style="bold cyan")
+        flow.append("  -->  ", style="dim")
+        flow.append("LLM", style="bold yellow")
+        flow.append("  -->  ", style="dim")
+        flow.append("Report", style="bold magenta")
+        flow.append("\n")
+
+        # Counts line
+        flow.append(f"  {total:>6}", style="dim")
+        flow.append("       ", style="dim")
+        flow.append(f"{sast_r:>4}", style="green")
+        resolved_sym = " ok" if sast_r > 0 else "   "
+        flow.append(resolved_sym, style="green")
+        flow.append("  ", style="dim")
+        flow.append(f"{graph_r:>5}", style="cyan")
+        resolved_sym = " ok" if graph_r > 0 else "   "
+        flow.append(resolved_sym, style="cyan")
+        flow.append(" ", style="dim")
+        flow.append(f"{llm_r:>4}", style="yellow")
+        resolved_sym = " ok" if llm_r > 0 else "   "
+        flow.append(resolved_sym, style="yellow")
+        flow.append("  ", style="dim")
+        flow.append(f"{total:>6}", style="magenta")
+        flow.append("\n")
+
+        # Percentage line
+        flow.append("  found ", style="dim")
+        flow.append(f"      {sast_pct:>4}", style="green")
+        flow.append(f"      {graph_pct:>5}", style="cyan")
+        flow.append(f"     {llm_pct:>4}", style="yellow")
+        flow.append("    total", style="dim")
+        flow.append("\n")
+
+        # Summary metrics
+        flow.append("\n")
+        efficiency = result.cascade_efficiency
+        flow.append(f"  Cascade Efficiency: ", style="dim")
+        eff_color = "green" if efficiency >= 0.7 else ("yellow" if efficiency >= 0.4 else "red")
+        flow.append(f"{efficiency:.0%} resolved at SAST", style=eff_color)
+        flow.append("\n")
+
+        if esc_to_graph > 0:
+            savings = (1 - esc_to_llm / total) * 100 if total > 0 else 0
+            flow.append(f"  LLM API Savings:    ", style="dim")
+            flow.append(f"~{savings:.0f}% fewer calls", style="cyan")
+            flow.append("\n")
+
+        self.console.print(Panel(
+            flow,
+            title="Cascade Summary",
+            border_style="cyan",
+            safe_box=self._safe_box,
+        ))
+
+        # Detailed stats table (below the flow)
+        stats_table = Table(show_header=True, header_style="bold cyan", safe_box=self._safe_box)
         stats_table.add_column("Stage", width=20)
         stats_table.add_column("Resolved", width=12, justify="right")
         stats_table.add_column("Percentage", width=12, justify="right")

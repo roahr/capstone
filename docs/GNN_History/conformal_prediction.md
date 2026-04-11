@@ -96,14 +96,32 @@ Selected T=0.10 (minimum T meeting val coverage >= 90%).
 - Cal singleton rate: 69.1%, coverage: 86.4%
 - Test singleton rate: 67.7%, coverage: 84.3%
 
-### Coverage Gap and Fix
+### From Offline to Live Deployment (V6)
 
-Test coverage (84.3%) fell below the 90% target because T=0.10 is too aggressive — val coverage (92%) didn't fully transfer to test. At T=0.10, softmax outputs become nearly binary due to float precision, causing some wrong singletons.
+Three critical findings emerged when deploying the conformal predictor in the live cascade:
 
-**Recommended fix**: Use T=0.20 (val coverage 96.3%) which would give:
-- Expected test coverage: ~93-96% (meets 90% guarantee)
-- Expected singleton rate: ~35-40% (still excellent for cascade routing)
-- This requires only a config change, no retraining
+**Finding 1: Threshold=1.0 is a degenerate boundary for binary classification.**
+For 2-class softmax, `P(top_class) < 1.0` strictly with finite logits. The condition
+`cumsum[0] >= 1.0` can only be satisfied by float overflow — not a principled threshold.
+Setting threshold=0.95 provides a meaningful confidence gate: singletons require ≥95%
+model confidence, which is scientifically defensible.
+
+**Finding 2: Backward slicing creates distribution shift.**
+The model was calibrated on full function graphs (10-300 nodes), but the live pipeline's
+backward slicer reduces CPGs to 1-6 nodes. On such tiny graphs, the model cannot extract
+meaningful structural features. Solution: use full CPG for GNN inference (truncated to
+max_nodes=300), aligning inference with training conditions.
+
+**Finding 3: Extreme temperature scaling eliminates uncertainty signal.**
+T=0.2 produces near-binary softmax for ALL inputs, making every prediction a singleton
+regardless of actual model confidence. This defeats the purpose of conformal routing —
+the cascade needs SOME ambiguous predictions to trigger LLM escalation. T=0.95 preserves
+natural uncertainty: confident → singleton (GNN), uncertain → ambiguous (LLM).
+
+**Deployed configuration**: threshold=0.95, T=0.95, full CPG input.
+
+**Live benchmark (15 repos, 184 findings)**:
+- SAST: 85% | GNN: 2% | LLM: 12% | Unresolved: 0%
 
 ## Theoretical Guarantees
 

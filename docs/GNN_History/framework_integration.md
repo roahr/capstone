@@ -54,47 +54,33 @@ From `configs/cwe_weights.yaml`:
 
 Memory and buffer CWEs weight the GNN heavily (45-60%) because graph structure captures pointer/memory patterns effectively.
 
-## Files Requiring Update for V5 Model
+## Framework Integration (Completed)
 
-### 1. `src/graph/gnn/mini_gin.py` (CREATE)
-Port MiniGINv3 from notebook. Must implement:
-- `__init__(input_dim=774, hidden_dim=384, num_gin_layers=3, dropout=0.35)`
-- `forward(x, edge_index, batch)` -> `(logits, confidence)`
-- `predict(x, edge_index, batch)` -> `(pred_class, pred_prob, confidence)`
-- `get_attention_weights()` -> `{}` (stub, GIN has no attention)
+All integration changes have been applied and verified (287 tests pass).
 
-### 2. `src/graph/gnn/graph_validator.py` (UPDATE)
-- Lines 156-166: Replace `MiniGAT` import with `MiniGINv3`
-- Update `input_dim=773` to `774`
-- Load `conformal_temperature` from calibration JSON
-- Apply `softmax(logits / T)` before conformal prediction
+### Files Created
+- `src/graph/gnn/mini_gin_v3.py` — MiniGINv3 model class (2.375M params)
 
-### 3. `src/graph/gnn/data_builder.py` (UPDATE)
-- `NODE_FEATURE_DIM: int = 5` -> `6`
-- `TOTAL_DIM: int = 773` -> `774`
-- Add `language_id` to feature extraction
+### Files Modified
+- `src/graph/gnn/graph_validator.py` — Loads MiniGINv3, passes language to data builder,
+  reads conformal_temperature from calibration JSON, uses **full CPG** (not backward-sliced)
+  for GNN inference to match training distribution
+- `src/graph/uncertainty/conformal.py` — Added `_temperature` field, applies
+  `softmax(logits / T)` in both `calibrate()` and `predict()`, clamped threshold to 1.0 max
+- `src/graph/gnn/data_builder.py` — `NODE_FEATURE_DIM: 5 → 6`, `TOTAL_DIM: 773 → 774`,
+  passes `language` parameter to feature extractor
+- `src/graph/features/node_features.py` — Added 6th feature (`language_id`), added
+  `LANGUAGE_IDS` mapping (py=0.0, js=0.2, java=0.4, c/cpp=0.6, go=0.8)
+- `configs/default.yaml` — `input_dim: 774`, `hidden_dim: 384`, `model_path: mini_gin_v3.pt`,
+  added `conformal.temperature: 0.95`
+- `src/cli/main.py`, `src/cli/interactive.py` — Updated model path references
 
-### 4. `configs/default.yaml` (UPDATE)
-```yaml
-gnn:
-  input_dim: 774        # was 773
-  hidden_dim: 384
-  num_gin_layers: 3
-  dropout: 0.35
-  num_classes: 2
-  model_path: "data/models/mini_gat_v5.pt"
+### Deployed Artifacts
 ```
-
-### 5. Artifact Deployment
-```
-notebooks/Kaggle_sec_c_gnn_v4_improved/mini_gat_v3.pt
-  -> data/models/mini_gat_v5.pt
-
-notebooks/Kaggle_sec_c_gnn_v4_improved/conformal_calibration_v3.json
-  -> data/models/conformal_calibration.json
-
-notebooks/Kaggle_sec_c_gnn_v4_improved/graph_config_v3.json
-  -> data/models/graph_config.json
+data/models/
+  mini_gin_v3.pt                 (9.1 MB)  — V5 trained weights
+  conformal_calibration.json               — T=0.95, threshold=0.95
+  graph_config.json                        — Architecture + dataset info
 ```
 
 ## Graceful Degradation

@@ -24,10 +24,10 @@ BANNER_ART = r"""
 """
 
 BANNER_TEXT = (
-    "[bold cyan]" + BANNER_ART + "[/bold cyan]\n"
+    "[bold cyan]" + BANNER_ART + "[/bold cyan]"
     "[bold white]   Multi-Stage Code Security Framework[/bold white]\n"
     "[dim]   Adaptive Vulnerability Triage & Detection[/dim]\n"
-    f"[dim]   v{VERSION}[/dim]"
+    f"[dim]   v{VERSION}  |  5 Languages  |  4-Stage Cascade[/dim]"
 )
 
 # Backward-compatible alias

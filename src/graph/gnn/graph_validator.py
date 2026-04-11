@@ -387,12 +387,15 @@ class GraphValidator:
         topo_features = self._extract_topology_features(sliced, finding)
 
         # 4. GNN inference (if model available)
+        # Use full CPG for GNN (not backward-sliced) — sliced graphs are
+        # too small (1-6 nodes) for the model trained on 10-300 node graphs.
+        # The data_builder truncates to max_nodes=300 if needed.
         lang = finding.language.value if finding.language else "python"
-        gnn_result = self._run_gnn(sliced, language=lang)
+        gnn_result = self._run_gnn(cpg, language=lang)
 
-        # 5. Conformal prediction
+        # 5. Conformal prediction (also uses full CPG)
         conformal_set, conformal_coverage = self._run_conformal(
-            sliced, language=lang
+            cpg, language=lang
         )
 
         # 6. Assemble GraphValidation

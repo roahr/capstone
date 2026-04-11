@@ -20,7 +20,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from src.sast.sarif.schema import Finding, ScanResult, Severity, StageResolved, Verdict
+from src.sast.sarif.schema import Finding, ScanResult, Severity, Verdict
 
 logger = logging.getLogger(__name__)
 
@@ -297,6 +297,13 @@ class HTMLReporter:
         for f in result.findings:
             lang_counts[f.language.value] = lang_counts.get(f.language.value, 0) + 1
 
+        verdict_counts = {
+            "confirmed": confirmed,
+            "likely": likely,
+            "potential": potential,
+            "safe": safe_count,
+        }
+
         parts = [
             "<!DOCTYPE html>",
             '<html lang="en">',
@@ -317,8 +324,9 @@ class HTMLReporter:
                 total, confirmed, likely, potential, safe_count,
                 result.cascade_efficiency,
             ),
+            self._render_timeline(result),
             self._render_pipeline(result, total),
-            self._render_charts(sev_counts, cwe_counts, lang_counts, total),
+            self._render_charts(sev_counts, cwe_counts, lang_counts, total, verdict_counts),
             self._render_findings_section(
                 result, total, confirmed, likely, potential, safe_count,
             ),
@@ -369,6 +377,8 @@ class HTMLReporter:
         langs = ", ".join(lang.value for lang in result.languages_detected) or "N/A"
         duration_s = result.scan_duration_ms / 1000
 
+        risk_gauge = self._render_risk_gauge(risk_level, risk_color)
+
         return f"""
 <section class="report-header" id="summary">
     <div class="header-top">
@@ -378,9 +388,8 @@ class HTMLReporter:
                 <p class="framework-name">Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection</p>
             </div>
         </div>
-        <div class="risk-badge" style="--risk-color: {risk_color}">
-            <div class="risk-label">Risk Level</div>
-            <div class="risk-value">{risk_level}</div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+            {risk_gauge}
         </div>
     </div>
     <p class="risk-narrative">{risk_narrative}</p>
@@ -417,36 +426,38 @@ class HTMLReporter:
         safe_count: int,
         efficiency: float,
     ) -> str:
+        eff_pct = int(efficiency * 100)
         return f"""
 <div class="metrics-grid">
     <div class="metric-card">
         <div class="metric-icon">{self._icon('layers', 22, '#94a3b8')}</div>
-        <div class="metric-value">{total}</div>
+        <div class="metric-value" data-target="{total}">0</div>
         <div class="metric-label">Total Findings</div>
     </div>
     <div class="metric-card">
         <div class="metric-icon">{self._icon('shield-alert', 22, '#ef4444')}</div>
-        <div class="metric-value" style="color:#ef4444">{confirmed}</div>
+        <div class="metric-value" style="color:#ef4444" data-target="{confirmed}">0</div>
         <div class="metric-label">Confirmed</div>
     </div>
     <div class="metric-card">
         <div class="metric-icon">{self._icon('alert-triangle', 22, '#eab308')}</div>
-        <div class="metric-value" style="color:#eab308">{likely}</div>
+        <div class="metric-value" style="color:#eab308" data-target="{likely}">0</div>
         <div class="metric-label">Likely</div>
     </div>
     <div class="metric-card">
         <div class="metric-icon">{self._icon('search', 22, '#38bdf8')}</div>
-        <div class="metric-value" style="color:#38bdf8">{potential}</div>
+        <div class="metric-value" style="color:#38bdf8" data-target="{potential}">0</div>
         <div class="metric-label">Potential</div>
     </div>
     <div class="metric-card">
         <div class="metric-icon">{self._icon('check-circle', 22, '#22c55e')}</div>
-        <div class="metric-value" style="color:#22c55e">{safe_count}</div>
+        <div class="metric-value" style="color:#22c55e" data-target="{safe_count}">0</div>
         <div class="metric-label">False Positives Filtered</div>
     </div>
     <div class="metric-card">
         <div class="metric-icon">{self._icon('trending-up', 22, '#818cf8')}</div>
-        <div class="metric-value" style="color:#818cf8">{efficiency:.0%}</div>
+        <div class="metric-value" style="color:#818cf8"
+            data-target="{eff_pct}" data-suffix="%">0</div>
         <div class="metric-label">Cascade Efficiency</div>
     </div>
 </div>"""
@@ -456,22 +467,81 @@ class HTMLReporter:
         graph_pct = result.resolved_at_graph / max(total, 1) * 100
         llm_pct = result.resolved_at_llm / max(total, 1) * 100
 
-        # Only show the unresolved box if there actually are unresolved findings
-        unresolved_html = ""
+        # Build stage node data for the SVG
+        stages = [
+            ("SAST", "Static Analysis", result.resolved_at_sast, f"{sast_pct:.0f}%", "#22c55e"),
+            ("Graph", "Neural Analysis", result.resolved_at_graph, f"{graph_pct:.0f}%", "#38bdf8"),
+            ("LLM", "Adversarial", result.resolved_at_llm, f"{llm_pct:.0f}%", "#eab308"),
+        ]
         if result.unresolved > 0:
             unresolved_pct = result.unresolved / max(total, 1) * 100
-            unresolved_html = f"""
-        <div class="pipeline-connector">
-            <div class="connector-line"></div>
-            {self._icon('chevron-right', 20, '#475569')}
-        </div>
-        <div class="pipeline-stage stage-unresolved">
-            <div class="stage-icon">{self._icon('alert-triangle', 28, '#ef4444')}</div>
-            <div class="stage-name">Unresolved</div>
-            <div class="stage-subtitle">Requires Review</div>
-            <div class="stage-count">{result.unresolved}</div>
-            <div class="stage-pct">{unresolved_pct:.0f}% remaining</div>
-        </div>"""
+            stages.append((
+                "Unresolved", "Requires Review",
+                result.unresolved, f"{unresolved_pct:.0f}%", "#ef4444",
+            ))
+
+        num_stages = len(stages)
+        node_w, node_h = 140, 100
+        gap = 80
+        svg_w = num_stages * node_w + (num_stages - 1) * gap + 40
+        svg_h = node_h + 40
+
+        svg_parts = []
+        # Draw connector paths with animated dashes and particles
+        for idx in range(num_stages - 1):
+            x1 = 20 + idx * (node_w + gap) + node_w
+            x2 = 20 + (idx + 1) * (node_w + gap)
+            y = svg_h // 2
+            path_id = f"pipeline-path-{idx}"
+            svg_parts.append(
+                f'<path id="{path_id}" class="pipeline-path-dashed" '
+                f'd="M {x1} {y} L {x2} {y}" '
+                f'stroke="#475569" stroke-width="2" fill="none"/>'
+            )
+            # Animated particle along the path
+            svg_parts.append(
+                f'<circle class="pipeline-particle" r="3">'
+                f'<animateMotion dur="2s" repeatCount="indefinite">'
+                f'<mpath href="#{path_id}"/>'
+                f'</animateMotion>'
+                f'</circle>'
+            )
+
+        # Draw stage nodes
+        for idx, (name, subtitle, count, pct, color) in enumerate(stages):
+            x = 20 + idx * (node_w + gap)
+            y = (svg_h - node_h) // 2
+            svg_parts.append(
+                f'<rect x="{x}" y="{y}" width="{node_w}" height="{node_h}" '
+                f'rx="10" ry="10" fill="rgba(15,23,42,0.6)" '
+                f'stroke="{color}" stroke-width="1.5"/>'
+            )
+            # Stage name
+            svg_parts.append(
+                f'<text x="{x + node_w // 2}" y="{y + 22}" text-anchor="middle" '
+                f'fill="{color}" font-family="Inter,sans-serif" font-size="11" '
+                f'font-weight="700" text-transform="uppercase">{html.escape(name)}</text>'
+            )
+            # Subtitle
+            svg_parts.append(
+                f'<text x="{x + node_w // 2}" y="{y + 36}" text-anchor="middle" '
+                f'fill="#64748b" font-family="Inter,sans-serif" font-size="9">'
+                f'{html.escape(subtitle)}</text>'
+            )
+            # Count
+            svg_parts.append(
+                f'<text x="{x + node_w // 2}" y="{y + 65}" text-anchor="middle" '
+                f'fill="{color}" font-family="Orbitron,monospace" font-size="22" '
+                f'font-weight="800">{count}</text>'
+            )
+            # Percentage
+            svg_parts.append(
+                f'<text x="{x + node_w // 2}" y="{y + 85}" text-anchor="middle" '
+                f'fill="#94a3b8" font-family="Inter,sans-serif" font-size="10">'
+                f'{pct} resolved</text>'
+            )
+
+        svg_content = "\n".join(svg_parts)
 
         return f"""
 <section class="section-card" id="pipeline">
@@ -484,36 +554,10 @@ class HTMLReporter:
         either resolves a finding with sufficient confidence or escalates it to the next
         stage for deeper analysis.
     </p>
-    <div class="pipeline-flow">
-        <div class="pipeline-stage stage-sast">
-            <div class="stage-icon">{self._icon('code', 28, '#22c55e')}</div>
-            <div class="stage-name">Stage 1: SAST</div>
-            <div class="stage-subtitle">Static Analysis</div>
-            <div class="stage-count">{result.resolved_at_sast}</div>
-            <div class="stage-pct">{sast_pct:.0f}% resolved</div>
-        </div>
-        <div class="pipeline-connector">
-            <div class="connector-line"></div>
-            {self._icon('chevron-right', 20, '#475569')}
-        </div>
-        <div class="pipeline-stage stage-graph">
-            <div class="stage-icon">{self._icon('network', 28, '#38bdf8')}</div>
-            <div class="stage-name">Stage 2: Graph</div>
-            <div class="stage-subtitle">Neural Analysis</div>
-            <div class="stage-count">{result.resolved_at_graph}</div>
-            <div class="stage-pct">{graph_pct:.0f}% resolved</div>
-        </div>
-        <div class="pipeline-connector">
-            <div class="connector-line"></div>
-            {self._icon('chevron-right', 20, '#475569')}
-        </div>
-        <div class="pipeline-stage stage-llm">
-            <div class="stage-icon">{self._icon('cpu', 28, '#eab308')}</div>
-            <div class="stage-name">Stage 3: LLM</div>
-            <div class="stage-subtitle">Adversarial Validation</div>
-            <div class="stage-count">{result.resolved_at_llm}</div>
-            <div class="stage-pct">{llm_pct:.0f}% resolved</div>
-        </div>{unresolved_html}
+    <div class="pipeline-svg-container">
+        <svg width="{svg_w}" height="{svg_h}" viewBox="0 0 {svg_w} {svg_h}" xmlns="http://www.w3.org/2000/svg">
+{svg_content}
+        </svg>
     </div>
 </section>"""
 
@@ -523,18 +567,46 @@ class HTMLReporter:
         cwe_counts: dict[str, int],
         lang_counts: dict[str, int],
         total: int,
+        verdict_counts: dict[str, int] | None = None,
     ) -> str:
-        sev_chart = self._render_bar_chart(
-            sev_counts,
-            {
-                "critical": "#ef4444",
-                "high": "#f97316",
-                "medium": "#eab308",
-                "low": "#3b82f6",
-                "info": "#64748b",
-            },
-            total,
-        )
+        sev_colors = {
+            "critical": "#ef4444",
+            "high": "#f97316",
+            "medium": "#eab308",
+            "low": "#3b82f6",
+            "info": "#64748b",
+        }
+        sev_segments = [
+            (label.capitalize(), count, sev_colors.get(label, "#64748b"))
+            for label, count in sev_counts.items()
+            if count > 0
+        ]
+        sev_donut = self._render_donut_chart(sev_segments, "Severity")
+
+        # Verdict donut chart
+        verdict_section = ""
+        if verdict_counts:
+            verdict_colors = {
+                "confirmed": "#ef4444",
+                "likely": "#eab308",
+                "potential": "#38bdf8",
+                "safe": "#22c55e",
+            }
+            verdict_segments = [
+                (label.capitalize(), count, verdict_colors.get(label, "#64748b"))
+                for label, count in verdict_counts.items()
+                if count > 0
+            ]
+            verdict_donut = self._render_donut_chart(verdict_segments, "Verdicts")
+            verdict_section = f"""
+    <div class="chart-card">
+        <div class="chart-title">
+            {self._icon('shield-check', 16, '#38bdf8')}
+            <h3>Verdict Distribution</h3>
+        </div>
+        {verdict_donut}
+    </div>"""
+
         cwe_chart = self._render_bar_chart(
             dict(sorted(cwe_counts.items(), key=lambda x: -x[1])[:8]),
             None,
@@ -560,8 +632,8 @@ class HTMLReporter:
             {self._icon('alert-triangle', 16, '#38bdf8')}
             <h3>Severity Distribution</h3>
         </div>
-        <div class="bar-chart">{sev_chart}</div>
-    </div>
+        {sev_donut}
+    </div>{verdict_section}
     <div class="chart-card">
         <div class="chart-title">
             {self._icon('hash', 16, '#38bdf8')}
@@ -867,12 +939,35 @@ html { scroll-behavior: smooth; scroll-padding-top: 56px; }
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background: var(--bg-body);
+    background-color: #0a0e17;
+    background-image: radial-gradient(circle, rgba(56, 189, 248, 0.06) 1px, transparent 1px);
+    background-size: 30px 30px;
+    animation: gridDrift 60s linear infinite;
     color: var(--text-primary);
     line-height: 1.6;
     font-size: 15px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+}
+@keyframes gridDrift {
+    0% { background-position: 0 0; }
+    100% { background-position: 30px 30px; }
+}
+
+/* ---- Scan-line sweep ---- */
+body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+    animation: scanLine 2s ease-out forwards;
+    z-index: 9999;
+    pointer-events: none;
+}
+@keyframes scanLine {
+    0% { top: 0; opacity: 1; }
+    100% { top: 100vh; opacity: 0; }
 }
 
 /* ---- Accent bar ---- */
@@ -1044,16 +1139,20 @@ body {
     margin-bottom: 24px;
 }
 .metric-card {
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     padding: 20px;
     text-align: center;
-    transition: transform 0.2s, border-color 0.2s;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
 }
 .metric-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--border-lt);
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+    border-color: rgba(56, 189, 248, 0.3);
 }
 .metric-icon { margin-bottom: 8px; }
 .metric-icon svg { display: inline-block; }
@@ -1063,6 +1162,7 @@ body {
     font-weight: 800;
     line-height: 1.1;
     color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
 }
 .metric-label {
     color: var(--text-secondary);
@@ -1074,12 +1174,14 @@ body {
 
 /* ---- Section cards ---- */
 .section-card {
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     padding: 28px;
     margin-bottom: 24px;
-    box-shadow: var(--shadow-sm);
 }
 .section-header {
     display: flex;
@@ -1175,9 +1277,12 @@ body {
     margin-bottom: 24px;
 }
 .chart-card {
-    background: var(--bg-primary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     padding: 22px;
 }
 .chart-title {
@@ -1362,7 +1467,12 @@ tbody tr:last-child td { border-bottom: none; }
 .badge-potential { background: rgba(56,189,248,0.15); color: var(--accent); }
 .badge-safe { background: rgba(34,197,94,0.15); color: var(--green); }
 
-.badge-cvss-critical { background: rgba(239,68,68,0.15); color: var(--red); font-family: 'Orbitron', sans-serif; }
+.badge-cvss-critical { background: rgba(239,68,68,0.15); color: var(--red); font-family: 'Orbitron', sans-serif; animation: pulseCritical 2s ease-in-out infinite; }
+.badge-critical { animation: pulseCritical 2s ease-in-out infinite; }
+@keyframes pulseCritical {
+    0%, 100% { box-shadow: 0 0 4px rgba(239, 68, 68, 0.4); }
+    50% { box-shadow: 0 0 16px rgba(239, 68, 68, 0.8); }
+}
 .badge-cvss-high { background: rgba(249,115,22,0.15); color: var(--orange); font-family: 'Orbitron', sans-serif; }
 .badge-cvss-medium { background: rgba(234,179,8,0.15); color: var(--yellow); font-family: 'Orbitron', sans-serif; }
 .badge-cvss-low { background: rgba(59,130,246,0.15); color: var(--blue); font-family: 'Orbitron', sans-serif; }
@@ -1396,9 +1506,12 @@ tbody tr:last-child td { border-bottom: none; }
 /* ---- Methodology ---- */
 .methodology-grid { display: grid; gap: 18px; margin-bottom: 28px; }
 .method-card {
-    background: var(--bg-secondary);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(56, 189, 248, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     overflow: hidden;
 }
 .method-header {
@@ -1699,6 +1812,88 @@ tbody tr:last-child td { border-bottom: none; }
     margin-right: auto;
 }
 
+/* ---- Donut chart ---- */
+.donut-chart { position: relative; display: inline-block; }
+.donut-chart svg { transform: rotate(-90deg); }
+.donut-segment {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s ease-out;
+}
+.donut-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+.donut-center .donut-total { font-family: 'Orbitron', monospace; font-size: 1.5rem; color: #e2e8f0; }
+.donut-center .donut-label { font-size: 0.7rem; color: #64748b; text-transform: uppercase; }
+.donut-legend { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 12px; justify-content: center; }
+.donut-legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #94a3b8; }
+.donut-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+/* ---- Risk gauge ---- */
+.risk-gauge { position: relative; width: 180px; height: 100px; margin: 0 auto; }
+.risk-gauge svg { overflow: visible; }
+.gauge-track { fill: none; stroke: #1e293b; stroke-width: 12; stroke-linecap: round; }
+.gauge-fill { fill: none; stroke-width: 12; stroke-linecap: round; transition: stroke-dashoffset 1.5s ease-out; }
+.gauge-needle { transform-origin: 50% 100%; transition: transform 1.5s ease-out; }
+.gauge-value { font-family: 'Orbitron', monospace; font-size: 1.4rem; fill: #e2e8f0; text-anchor: middle; }
+.gauge-label { font-size: 0.7rem; fill: #94a3b8; text-anchor: middle; text-transform: uppercase; }
+
+/* ---- Scan timeline ---- */
+.scan-timeline { display: flex; align-items: center; gap: 0; margin: 16px 0; border-radius: 8px; overflow: hidden; height: 36px; }
+.timeline-stage { height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 600; color: #0f1419; position: relative; cursor: pointer; transition: opacity 0.2s; min-width: 60px; }
+.timeline-stage:hover { opacity: 0.85; }
+.timeline-stage .timeline-label { z-index: 1; }
+.timeline-total { font-size: 0.75rem; color: #64748b; margin-top: 6px; text-align: right; }
+
+/* ---- Expandable finding rows ---- */
+.finding-expand-btn {
+    background: none; border: none; cursor: pointer; color: #64748b; padding: 2px 6px;
+    transition: transform 0.3s ease, color 0.3s ease;
+}
+.finding-expand-btn.expanded { transform: rotate(90deg); color: #38bdf8; }
+.finding-detail-row { display: none; }
+.finding-detail-row.expanded { display: table-row; }
+.finding-detail-row td {
+    padding: 16px 24px;
+    background: rgba(15, 23, 42, 0.4);
+    border-bottom: 1px solid #2d3748;
+}
+.finding-detail-content {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;
+}
+.finding-detail-content pre {
+    background: #0a0e17; border-radius: 8px; padding: 12px; overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; line-height: 1.5;
+    border: 1px solid #2d3748;
+}
+/* Syntax highlighting */
+.hl-keyword { color: #c084fc; font-weight: bold; }
+.hl-string { color: #4ade80; }
+.hl-comment { color: #64748b; font-style: italic; }
+.hl-number { color: #38bdf8; }
+.hl-function { color: #fbbf24; }
+
+/* ---- Animated pipeline SVG ---- */
+.pipeline-svg-container { width: 100%; overflow-x: auto; }
+.pipeline-svg-container svg { display: block; margin: 0 auto; }
+.pipeline-node rect { rx: 10; ry: 10; }
+.pipeline-path-dashed {
+    stroke-dasharray: 8 4;
+    animation: dashFlow 1.5s linear infinite;
+}
+@keyframes dashFlow {
+    0% { stroke-dashoffset: 24; }
+    100% { stroke-dashoffset: 0; }
+}
+.pipeline-particle {
+    fill: var(--accent);
+    opacity: 0.8;
+}
+
 /* ---- Animations ---- */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
@@ -1706,6 +1901,21 @@ tbody tr:last-child td { border-bottom: none; }
 }
 .report-header, .metrics-grid, .section-card, .charts-grid {
     animation: fadeIn 0.4s ease-out;
+}
+
+/* ---- Reduced motion accessibility ---- */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+    body::after { display: none; }
+    .donut-segment { transition: none; }
+    .gauge-fill { transition: none; }
+    .gauge-needle { transition: none; }
+    .metric-card { transition: none; }
+    .pipeline-path-dashed { animation: none; }
 }
 
 /* ---- Responsive ---- */
@@ -1754,6 +1964,8 @@ tbody tr:last-child td { border-bottom: none; }
     /* Hide interactive elements */
     .help-fab, .methodology-panel, .methodology-backdrop { display: none !important; }
     .accent-bar, .report-nav { display: none !important; }
+    body::after { display: none !important; }
+    body { animation: none !important; background-image: none !important; background-color: #fff !important; }
     .filter-group, .search-box, .findings-toolbar { display: none; }
     .modal-overlay { display: none !important; }
 
@@ -1817,6 +2029,65 @@ tbody tr:last-child td { border-bottom: none; }
     def _render_javascript(self, findings_json: str) -> str:
         """Return all client-side JS. Uses string concat to avoid brace escaping."""
         return "const findings = " + findings_json + ";\n" + """
+/* ---- Animated counters ---- */
+function animateCounters() {
+    document.querySelectorAll('.metric-value[data-target]').forEach(function(el, i) {
+        var target = parseInt(el.getAttribute('data-target'));
+        var suffix = el.getAttribute('data-suffix') || '';
+        var duration = 1500;
+        var start = performance.now();
+        setTimeout(function() {
+            function step(now) {
+                var elapsed = now - start;
+                var progress = Math.min(elapsed / duration, 1);
+                var eased = 1 - Math.pow(1 - progress, 3);
+                el.textContent = Math.round(target * eased) + suffix;
+                if (progress < 1) requestAnimationFrame(step);
+            }
+            start = performance.now();
+            requestAnimationFrame(step);
+        }, i * 100);
+    });
+}
+
+/* ---- Donut chart animation ---- */
+function animateDonuts() {
+    document.querySelectorAll('.donut-segment').forEach(function(seg, i) {
+        var len = parseFloat(seg.getAttribute('data-length'));
+        seg.style.strokeDasharray = len + ' ' + (2 * Math.PI * 60);
+        seg.style.strokeDashoffset = len;
+        setTimeout(function() {
+            seg.style.strokeDashoffset = '0';
+        }, 300 + i * 200);
+    });
+}
+
+/* ---- Syntax highlighter ---- */
+function highlightCode(code) {
+    return code
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        .replace(/(#.*$|\\/\\/.*$)/gm, '<span class="hl-comment">$1</span>')
+        .replace(/("(?:[^"\\\\\\\\]|\\\\\\\\.)*"|'(?:[^'\\\\\\\\]|\\\\\\\\.)*')/g, '<span class="hl-string">$1</span>')
+        .replace(/\\b(\\d+\\.?\\d*)\\b/g, '<span class="hl-number">$1</span>')
+        .replace(/\\b(def|class|import|from|return|if|elif|else|for|while|try|except|with|as|in|not|and|or|True|False|None|var|let|const|function|public|private|static|void|int|String|boolean)\\b/g, '<span class="hl-keyword">$1</span>');
+}
+
+/* ---- Expandable finding rows ---- */
+function toggleFinding(index) {
+    var btn = document.querySelector('.expand-btn-' + index);
+    var row = document.getElementById('detail-row-' + index);
+    if (row) {
+        var isExpanded = row.classList.contains('expanded');
+        row.classList.toggle('expanded');
+        btn.classList.toggle('expanded');
+        if (!isExpanded && row.querySelector('pre:not(.highlighted)')) {
+            var pre = row.querySelector('pre');
+            pre.innerHTML = highlightCode(pre.textContent);
+            pre.classList.add('highlighted');
+        }
+    }
+}
+
 var currentStage = 'all';
 var currentVerdict = 'all';
 var currentSearch = '';
@@ -1845,9 +2116,11 @@ function searchFindings(query) {
 function applyFilters() {
     var rows = document.querySelectorAll('#findingsTable tbody tr');
     var visible = 0;
-    var total = rows.length;
+    var total = 0;
     for (var i = 0; i < rows.length; i++) {
         var row = rows[i];
+        if (row.classList.contains('finding-detail-row')) continue;
+        total++;
         var matchStage = currentStage === 'all' || row.dataset.stage === currentStage;
         var matchVerdict = currentVerdict === 'all' || row.dataset.verdict === currentVerdict;
         var text = row.textContent.toLowerCase();
@@ -1857,6 +2130,8 @@ function applyFilters() {
             visible++;
         } else {
             row.style.display = 'none';
+            var detailRow = document.getElementById('detail-row-' + row.dataset.findingIndex);
+            if (detailRow) { detailRow.classList.remove('expanded'); }
         }
     }
     var footer = document.getElementById('tableFooter');
@@ -1869,8 +2144,9 @@ var sortAsc = true;
 function sortTable(colIndex) {
     var table = document.getElementById('findingsTable');
     var tbody = table.querySelector('tbody');
-    var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var allRows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
     var headers = table.querySelectorAll('th');
+    var dataRows = allRows.filter(function(r) { return !r.classList.contains('finding-detail-row'); });
 
     if (sortCol === colIndex) {
         sortAsc = !sortAsc;
@@ -1884,7 +2160,7 @@ function sortTable(colIndex) {
     }
     headers[colIndex].classList.add(sortAsc ? 'sort-asc' : 'sort-desc');
 
-    rows.sort(function(a, b) {
+    dataRows.sort(function(a, b) {
         var aSort = a.cells[colIndex].dataset.sort;
         var bSort = b.cells[colIndex].dataset.sort;
         var aVal, bVal, cmp;
@@ -1905,7 +2181,12 @@ function sortTable(colIndex) {
         return sortAsc ? cmp : -cmp;
     });
 
-    for (var j = 0; j < rows.length; j++) tbody.appendChild(rows[j]);
+    for (var j = 0; j < dataRows.length; j++) {
+        tbody.appendChild(dataRows[j]);
+        var detailId = 'detail-row-' + dataRows[j].dataset.findingIndex;
+        var detail = document.getElementById(detailId);
+        if (detail) tbody.appendChild(detail);
+    }
 }
 
 function showFinding(index) {
@@ -1988,6 +2269,12 @@ for (var i = 0; i < navLinks.length; i++) {
         if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
 }
+
+// Trigger animations on page load
+document.addEventListener('DOMContentLoaded', function() {
+    animateCounters();
+    animateDonuts();
+});
 """
 
     # ------------------------------------------------------------------
@@ -2022,7 +2309,7 @@ for (var i = 0; i < navLinks.length; i++) {
     }
 
     def _render_findings_rows(self, findings: list[Finding]) -> str:
-        """Render HTML table rows for findings."""
+        """Render HTML table rows for findings with expandable detail rows."""
         mono = "'JetBrains Mono','SF Mono','Fira Code','Cascadia Code',Consolas,monospace"
         rows = []
         for i, f in enumerate(findings):
@@ -2033,9 +2320,17 @@ for (var i = 0; i < navLinks.length; i++) {
             v_sort = self.VERDICT_SORT.get(f.verdict.value, 0)
             s_sort = self.SEVERITY_SORT.get(f.severity.value, 0)
             st_sort = self.STAGE_SORT.get(stage, 9)
+            snippet = html.escape(f.location.snippet or "No source available")
+            explanation = html.escape(f.nl_explanation or "")
             row = (
-                f'<tr data-verdict="{f.verdict.value}" data-stage="{stage}" onclick="showFinding({i})">'
-                f'<td style="color:var(--text-muted)">{i + 1}</td>'
+                f'<tr data-verdict="{f.verdict.value}" data-stage="{stage}" '
+                f'data-finding-index="{i}" onclick="showFinding({i})">'
+                f'<td style="color:var(--text-muted)">'
+                f'<button class="finding-expand-btn expand-btn-{i}" '
+                f'onclick="event.stopPropagation();toggleFinding({i})" title="Expand">'
+                f'{self._icon("chevron-right", 14)}'
+                f'</button>'
+                f' {i + 1}</td>'
                 f'<td data-sort="{st_sort}"><span class="badge {stage_class}">{stage.upper()}</span></td>'
                 f'<td data-sort="{v_sort}"><span class="badge {verdict_class}">{f.verdict.value}</span></td>'
                 f'<td data-sort="{s_sort}"><span class="badge {sev_class}">{f.severity.value}</span></td>'
@@ -2046,8 +2341,184 @@ for (var i = 0; i < navLinks.length; i++) {
                 f'<td><span class="badge badge-cvss-{f.cvss_severity}">{f.cvss_base_score:.1f}</span></td>'
                 f"</tr>"
             )
+            detail_row = (
+                f'<tr class="finding-detail-row" id="detail-row-{i}">'
+                f'<td colspan="9">'
+                f'<div class="finding-detail-content">'
+                f'<div>'
+                f'<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;'
+                f'letter-spacing:0.5px;margin-bottom:6px">Source Code</div>'
+                f'<pre>{snippet}</pre>'
+                f'</div>'
+                f'<div>'
+                f'<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;'
+                f'letter-spacing:0.5px;margin-bottom:6px">Details</div>'
+                f'<div style="font-size:0.825rem;color:var(--text-secondary);line-height:1.5">'
+                f'<strong>SAST Confidence:</strong> {f.sast_confidence:.0%}<br>'
+                f'<strong>Fused Score:</strong> {f.fused_score:.2f}<br>'
+                f'<strong>CVSS:</strong> {f.cvss_base_score:.1f} ({f.cvss_severity})'
+                f'</div>'
+                + (f'<div style="margin-top:8px;font-size:0.825rem;'
+                   f'color:var(--text-secondary);'
+                   f'line-height:1.5">{explanation}</div>'
+                   if explanation else '')
+                + '</div>'
+                '</div>'
+                '</td>'
+                '</tr>'
+            )
             rows.append(row)
+            rows.append(detail_row)
         return "\n".join(rows)
+
+    def _render_donut_chart(
+        self,
+        segments: list[tuple[str, int, str]],
+        title: str,
+    ) -> str:
+        """Render an SVG donut chart.
+
+        Args:
+            segments: list of (label, count, color) tuples.
+            title: Chart center label.
+        """
+        total = sum(count for _, count, _ in segments)
+        if total == 0:
+            return '<div style="color:var(--text-muted);font-size:0.85rem">No data available</div>'
+
+        radius = 60
+        circumference = 2 * 3.14159265 * radius
+        offset = 0
+        svg_segments = []
+
+        for label, count, color in segments:
+            if count == 0:
+                continue
+            length = (count / total) * circumference
+            svg_segments.append(
+                f'<circle class="donut-segment" cx="75" cy="75" r="{radius}" '
+                f'stroke="{color}" '
+                f'stroke-dasharray="0 {circumference:.2f}" '
+                f'stroke-dashoffset="-{offset:.2f}" '
+                f'data-length="{length:.2f}"/>'
+            )
+            offset += length
+
+        legend_items = []
+        for label, count, color in segments:
+            if count == 0:
+                continue
+            legend_items.append(
+                f'<span class="donut-legend-item">'
+                f'<span class="donut-legend-dot" style="background:{color}"></span>'
+                f'{html.escape(label)} ({count})'
+                f'</span>'
+            )
+
+        return (
+            f'<div style="text-align:center">'
+            f'<div class="donut-chart">'
+            f'<svg width="150" height="150" viewBox="0 0 150 150">'
+            f'{"".join(svg_segments)}'
+            f'</svg>'
+            f'<div class="donut-center">'
+            f'<div class="donut-total">{total}</div>'
+            f'<div class="donut-label">{html.escape(title)}</div>'
+            f'</div>'
+            f'</div>'
+            f'<div class="donut-legend">{"".join(legend_items)}</div>'
+            f'</div>'
+        )
+
+    def _render_risk_gauge(
+        self,
+        risk_level: str,
+        risk_color: str,
+        score: float | None = None,
+    ) -> str:
+        """Render a semi-circular SVG gauge for the risk score."""
+        level_scores = {
+            "CRITICAL": 0.95,
+            "HIGH": 0.75,
+            "MEDIUM": 0.50,
+            "LOW": 0.25,
+            "MINIMAL": 0.05,
+        }
+        value = score if score is not None else level_scores.get(risk_level, 0.5)
+
+        # Arc: semi-circle from left to right
+        # Path goes from (10,90) to (170,90) via the top
+        arc_length = 3.14159265 * 80  # half circumference, r=80
+        fill_length = value * arc_length
+        remaining = arc_length - fill_length
+
+        # Needle rotation: -90 (left) to +90 (right)
+        needle_deg = -90 + (value * 180)
+
+        return (
+            f'<div class="risk-gauge">'
+            f'<svg width="180" height="110" viewBox="0 0 180 110">'
+            # Track
+            f'<path class="gauge-track" d="M 10 95 A 80 80 0 0 1 170 95"/>'
+            # Fill
+            f'<path class="gauge-fill" d="M 10 95 A 80 80 0 0 1 170 95" '
+            f'stroke="{risk_color}" '
+            f'stroke-dasharray="{arc_length:.1f}" '
+            f'stroke-dashoffset="{remaining:.1f}"/>'
+            # Needle
+            f'<g class="gauge-needle" style="transform:rotate({needle_deg:.0f}deg)">'
+            f'<line x1="90" y1="95" x2="90" y2="25" stroke="{risk_color}" stroke-width="2"/>'
+            f'<circle cx="90" cy="95" r="4" fill="{risk_color}"/>'
+            f'</g>'
+            # Labels
+            f'<text class="gauge-value" x="90" y="85">{html.escape(risk_level)}</text>'
+            f'<text class="gauge-label" x="90" y="108">Risk Level</text>'
+            f'</svg>'
+            f'</div>'
+        )
+
+    def _render_timeline(self, result: ScanResult) -> str:
+        """Render the scan timeline waterfall showing stage durations."""
+        total_ms = result.scan_duration_ms
+        if total_ms <= 0:
+            return ""
+
+        # Build stage timing data from available info
+        stage_data = [
+            ("SAST", result.resolved_at_sast, "#22c55e"),
+            ("Graph", result.resolved_at_graph, "#38bdf8"),
+            ("LLM", result.resolved_at_llm, "#eab308"),
+        ]
+
+        total_resolved = sum(s[1] for s in stage_data)
+        if total_resolved == 0:
+            return ""
+
+        # Approximate time proportional to findings resolved
+        segments = []
+        for name, count, color in stage_data:
+            if count == 0:
+                continue
+            pct = max((count / max(total_resolved, 1)) * 100, 5)
+            segments.append(
+                f'<div class="timeline-stage" style="width:{pct:.1f}%;background:{color}" '
+                f'title="{name}: {count} findings resolved">'
+                f'<span class="timeline-label">{name} ({count})</span>'
+                f'</div>'
+            )
+
+        total_s = total_ms / 1000
+
+        return (
+            f'<div class="section-card">'
+            f'<div class="section-header">'
+            f'{self._icon("clock", 20, "#38bdf8")}'
+            f'<h2>Scan Timeline</h2>'
+            f'</div>'
+            f'<div class="scan-timeline">{"".join(segments)}</div>'
+            f'<div class="timeline-total">Total: {total_s:.1f}s</div>'
+            f'</div>'
+        )
 
     def _render_bar_chart(
         self,

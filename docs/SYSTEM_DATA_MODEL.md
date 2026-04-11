@@ -229,7 +229,7 @@ scan(target, languages, max_stage, github_repo) → ScanResult
     │   └── fused = (α·SAST + β·GAT + γ·LLM) / (α+β+γ), CWE-adaptive
     ├── Classification: ≥0.85 CONFIRMED, ≥0.50 LIKELY, <0.50 POTENTIAL
     ├── Generate SARIF 2.1.0 output
-    ├── Generate HTML dashboard (if --html)
+    ├── Generate HTML dashboard (if --dashboard)
     └── Return ScanResult with cascade statistics
 ```
 

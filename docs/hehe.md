@@ -295,7 +295,7 @@ sec-c
 ### Step 5: Full Cascade Scan with HTML Report
 
 ```
-/scan sample_testcases/python --html
+/scan sample_testcases/python --dashboard
 ```
 
 > "Now we're running the full 3-stage cascade. Watch how the pipeline works:
@@ -549,13 +549,13 @@ sec-c
 # Scanning
 /scan <path>               # Full cascade scan
 /scan <path> --stage sast  # SAST-only (fast)
-/scan <path> --html        # Full scan + HTML dashboard
-/scan <path> --output results.sarif --html   # All outputs
+/scan <path> --dashboard        # Full scan + HTML dashboard
+/scan <path> --output results.sarif --dashboard   # All outputs
 /scan --github owner/repo --languages python # GitHub scan
 
 # Reports
 /report results.sarif      # Console report from SARIF
-/report results.sarif --html  # HTML from SARIF
+/report results.sarif --dashboard  # HTML from SARIF
 
 # Session
 /history                   # Command history

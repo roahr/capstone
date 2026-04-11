@@ -44,10 +44,10 @@
 | `sec-c scan --stage sast` | SAST only (fastest) | `sec-c scan ./src -s sast` |
 | `sec-c scan --stage graph` | SAST + Graph | `sec-c scan ./src -s graph` |
 | `sec-c scan --stage llm` | Full cascade (default) | `sec-c scan ./src -s llm` |
-| `sec-c scan --html` | Generate HTML dashboard | `sec-c scan ./src --html` |
+| `sec-c scan --dashboard` | Generate HTML dashboard | `sec-c scan ./src --dashboard` |
 | `sec-c scan -o file.sarif` | Save SARIF report | `sec-c scan ./src -o results.sarif` |
 | `sec-c report <file.sarif>` | Display SARIF report | `sec-c report results.sarif` |
-| `sec-c report --html` | SARIF to HTML | `sec-c report results.sarif --html` |
+| `sec-c report --dashboard` | SARIF to HTML | `sec-c report results.sarif --dashboard` |
 | `sec-c status` | Tool availability | `sec-c status` |
 | `sec-c providers` | LLM provider details | `sec-c providers` |
 | `sec-c models` | List available models | `sec-c models` |
@@ -79,7 +79,7 @@
 | `--github` | `-g` | `owner/repo` | -- | Scan a GitHub repository instead of local path |
 | `--languages` | `-l` | `python,javascript,java,cpp,go` | auto-detect | Comma-separated list of languages to scan |
 | `--output` | `-o` | file path | -- | Save SARIF report to file |
-| `--html` | -- | flag | `false` | Generate interactive HTML dashboard |
+| `--dashboard` | -- | flag | `false` | Generate interactive HTML dashboard |
 | `--verbose` | `-v` | flag | `false` | Enable debug-level logging |
 | `--config` | `-c` | file path | `configs/default.yaml` | Custom configuration file |
 
@@ -114,7 +114,7 @@ sec-c scan [TARGET] [OPTIONS]
 | `--stage` | `-s` | `TEXT` | `llm` | Maximum cascade stage to execute. `sast` runs only Stage 1 (Tree-sitter + CodeQL). `graph` runs Stages 1-2 (adds Mini-GAT validation). `llm` runs all three stages (adds dual-agent LLM consensus). |
 | `--languages` | `-l` | `TEXT` | auto-detect | Comma-separated list of languages to scan. Valid values: `python`, `javascript`, `java`, `cpp`, `go`. If omitted, SEC-C auto-detects languages from file extensions in the target. |
 | `--output` | `-o` | `TEXT` | -- | File path for SARIF 2.1.0 output. Parent directories are created automatically. |
-| `--html` | -- | `BOOL` | `False` | Generate a self-contained interactive HTML dashboard and open it in the default browser. |
+| `--dashboard` | -- | `BOOL` | `False` | Generate a self-contained interactive HTML dashboard and open it in the default browser. |
 | `--verbose` | `-v` | `BOOL` | `False` | Enable debug-level logging. Shows stage timing, API calls, uncertainty scores, and internal pipeline details. |
 | `--config` | `-c` | `TEXT` | `configs/default.yaml` | Path to a custom YAML configuration file. Overrides the default configuration. |
 
@@ -128,7 +128,7 @@ sec-c scan ./my-project
 sec-c scan ./my-project/app.py --stage sast
 
 # Scan with HTML dashboard output
-sec-c scan ./my-project --stage sast --html
+sec-c scan ./my-project --stage sast --dashboard
 
 # Scan a GitHub repository (Python only)
 sec-c scan --github django/django --languages python
@@ -137,7 +137,7 @@ sec-c scan --github django/django --languages python
 sec-c scan ./src --output results.sarif --verbose
 
 # Scan specific languages with all outputs
-sec-c scan ./project --languages python,javascript --output report.sarif --html
+sec-c scan ./project --languages python,javascript --output report.sarif --dashboard
 
 # Scan with a custom config file
 sec-c scan ./src --config configs/strict.yaml
@@ -164,7 +164,7 @@ sec-c scan ./project --stage graph
 **Notes:**
 - Either `TARGET` or `--github` must be provided; specifying neither produces an error.
 - Unknown languages in `--languages` are skipped with a warning (the scan continues).
-- If `--html` is not specified but findings are found, SEC-C prints a tip suggesting the `--html` flag.
+- If `--dashboard` is not specified but findings are found, SEC-C prints a tip suggesting the `--dashboard` flag.
 - The scan target can be a single file or a directory. Directories are scanned recursively.
 
 ---
@@ -188,7 +188,7 @@ sec-c report <SARIF_FILE> [OPTIONS]
 
 | Option | Short | Type | Default | Description |
 |--------|-------|------|---------|-------------|
-| `--html` | -- | `BOOL` | `False` | Generate an interactive HTML dashboard from the SARIF file and open it in the browser. |
+| `--dashboard` | -- | `BOOL` | `False` | Generate an interactive HTML dashboard from the SARIF file and open it in the browser. |
 | `--verbose` | `-v` | `BOOL` | `False` | Enable debug logging. |
 
 **Examples:**
@@ -198,7 +198,7 @@ sec-c report <SARIF_FILE> [OPTIONS]
 sec-c report results.sarif
 
 # Convert SARIF to interactive HTML dashboard
-sec-c report results.sarif --html
+sec-c report results.sarif --dashboard
 
 # Verbose console display
 sec-c report results.sarif --verbose
@@ -206,9 +206,9 @@ sec-c report results.sarif --verbose
 
 **Expected Output:**
 
-Without `--html`: A console report identical in format to `sec-c scan` output, showing the findings table, verdict tiers, and summary.
+Without `--dashboard`: A console report identical in format to `sec-c scan` output, showing the findings table, verdict tiers, and summary.
 
-With `--html`: Opens a self-contained HTML dashboard in the default browser and prints the file path.
+With `--dashboard`: Opens a self-contained HTML dashboard in the default browser and prints the file path.
 
 ---
 
@@ -422,7 +422,7 @@ Scan a local directory or file for vulnerabilities.
 /scan <path> [--github <owner/repo>] [--stage <sast|graph|llm>] [--languages <langs>] [--output <file>] [--verbose]
 ```
 
-All flags work identically to the direct CLI `sec-c scan` command, except `--html` is not available in REPL mode (use `/report --html` on the saved SARIF file instead).
+All flags work identically to the direct CLI `sec-c scan` command, except `--dashboard` is not available in REPL mode (use `/report --dashboard` on the saved SARIF file instead).
 
 **Example interaction:**
 ```
@@ -570,7 +570,7 @@ A bordered table with two columns (Command, Description) listing all available c
 | `/scan --stage <sast\|graph\|llm>` | Run up to a specific stage |
 | `/scan --languages <py,js,java>` | Scan specific languages only |
 | `/scan --output <file.sarif>` | Save SARIF report to file |
-| `/scan --html` | Generate interactive HTML dashboard |
+| `/scan --dashboard` | Generate interactive HTML dashboard |
 | `/report <file.sarif>` | Display a SARIF report |
 | `/status` | Framework status + tool availability |
 | `/providers` | LLM provider details + API usage stats |
@@ -855,7 +855,7 @@ The SARIF `invocations` section includes cascade statistics:
 
 ### HTML Dashboard
 
-Generate with `--html` flag on either `sec-c scan` or `sec-c report`.
+Generate with `--dashboard` flag on either `sec-c scan` or `sec-c report`.
 
 #### What It Shows
 
@@ -902,10 +902,10 @@ The HTML dashboard is a single self-contained file with no external dependencies
 
 ```bash
 # During scan -- opens automatically in default browser
-sec-c scan ./project --html
+sec-c scan ./project --dashboard
 
 # From existing SARIF file
-sec-c report results.sarif --html
+sec-c report results.sarif --dashboard
 ```
 
 The HTML file is saved to a temporary directory and opened automatically via `webbrowser.open()`. The file path is printed to the console.

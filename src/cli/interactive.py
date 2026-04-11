@@ -50,16 +50,12 @@ class SecCCompleter(Completer):
 
     def __init__(self):
         self.commands = {
-            "/scan": "Scan a local directory or file for vulnerabilities",
-            # "/scan --github": "Scan a GitHub repository",  # Disabled for demo
-            "/scan --stage sast": "Run SAST stage only",
-            "/scan --stage graph": "Run up to Graph stage",
-            "/scan --stage llm": "Run full pipeline",
-            "/scan --languages": "Specify languages to scan",
-            "/report": "Display a SARIF report file",
+            "/scan": "Full cascade scan (SAST -> Graph -> LLM)",
+            "/quick": "SAST-only fast scan (<1s)",
+            "/deep": "Full cascade + verbose details",
+            "/report": "View saved SARIF report (opens dashboard)",
             "/status": "Framework status + tool availability",
-            "/providers": "LLM provider details + usage stats",
-            "/models": "List available models per provider",
+            "/providers": "LLM provider details",
             "/config": "Show current configuration",
             "/history": "Show recent command history",
             "/version": "Show SEC-C version and build info",
@@ -68,10 +64,11 @@ class SecCCompleter(Completer):
             "exit": "Exit SEC-C",
             "quit": "Exit SEC-C",
             # Also match without slash
-            "scan": "Scan (same as /scan)",
+            "scan": "Full cascade scan",
+            "quick": "SAST-only fast scan",
+            "deep": "Full cascade + verbose",
             "status": "Status (same as /status)",
             "providers": "Providers (same as /providers)",
-            "models": "Models (same as /models)",
             "help": "Help (same as /help)",
         }
         self.path_completer = PathCompleter(
@@ -96,7 +93,7 @@ class SecCCompleter(Completer):
                         start_position=-len(word),
                         display_meta=desc,
                     )
-        elif words[0] in ("scan", "report") and (
+        elif words[0] in ("scan", "quick", "deep", "report") and (
             len(words) >= 2 or text.endswith(" ")
         ):
             # Complete file paths after scan/report command
@@ -108,7 +105,7 @@ class SecCCompleter(Completer):
 
             # Check if it's a flag
             if path_text.startswith("--"):
-                flags = ["--github", "--stage", "--languages", "--output", "--verbose"]
+                flags = ["--stage", "--languages", "--output", "--dashboard", "--verbose"]
                 for flag in flags:
                     if flag.startswith(path_text):
                         yield Completion(flag, start_position=-len(path_text))
@@ -120,20 +117,8 @@ class SecCCompleter(Completer):
 
 
 def get_prompt_message() -> HTML:
-    """Generate the SEC-C prompt."""
-    cwd = os.getcwd()
-    # Shorten path
-    home = str(Path.home())
-    display_path = cwd.replace(home, "~") if cwd.startswith(home) else cwd
-    if len(display_path) > 40:
-        display_path = "..." + display_path[-37:]
-
-    return HTML(
-        '<prompt>sec-c</prompt>'
-        '<separator> > </separator>'
-        '<path>{}</path>'
-        '<separator> > </separator>'
-    ).format(display_path)
+    """Generate a minimal SEC-C prompt."""
+    return HTML('<prompt>sec-c</prompt><separator> > </separator>')
 
 
 def print_help() -> None:
@@ -148,22 +133,28 @@ def print_help() -> None:
     table.add_column("Description", width=50)
 
     commands = [
-        ("/scan <path>", "Scan local code (full cascade)"),
-        # ("/scan --github <owner/repo>", "Scan a GitHub repository"),  # Disabled for demo
-        ("/scan --stage <sast|graph|llm>", "Run up to a specific stage"),
-        ("/scan --languages <py,js,java>", "Scan specific languages only"),
-        ("/scan --output <file.sarif>", "Save SARIF report to file"),
-        ("/scan --html", "Generate interactive HTML dashboard"),
-        ("/report <file.sarif>", "Display a SARIF report"),
-        ("/status", "Framework status + tool availability"),
-        ("/providers", "LLM provider details + API usage stats"),
-        ("/models", "List available models per provider"),
-        ("/config", "Show current configuration"),
-        ("/history", "Show recent command history"),
-        ("/version", "Show SEC-C version and build info"),
+        # Scanning
+        ("", "[bold]Scanning[/bold]"),
+        ("/scan <path>", "Full cascade scan (SAST -> Graph -> LLM)"),
+        ("/quick <path>", "SAST-only fast scan (<1s)"),
+        ("/deep <path>", "Full cascade + verbose per-finding details"),
+        ("", ""),
+        # Reporting
+        ("", "[bold]Reporting[/bold]"),
+        ("/report <file.sarif>", "Open saved report (dashboard by default)"),
+        ("", ""),
+        # Framework
+        ("", "[bold]Framework[/bold]"),
+        ("/status", "Tool availability + API keys"),
+        ("/providers", "LLM provider details"),
+        ("/config", "Show configuration"),
+        ("/version", "Version and build info"),
+        ("", ""),
+        # Session
+        ("", "[bold]Session[/bold]"),
+        ("/history", "Recent command history"),
         ("/clear", "Clear the screen"),
-        ("/help", "Show this help"),
-        ("exit / quit / Ctrl+D", "Exit SEC-C"),
+        ("exit", "Exit SEC-C"),
     ]
 
     for cmd, desc in commands:
@@ -289,11 +280,6 @@ def print_status() -> None:
 
     # -- Infrastructure --
     table.add_row("[bold]Infrastructure[/bold]", "", "")
-    gh_token = os.environ.get("GITHUB_TOKEN")
-    if gh_token:
-        table.add_row("  GitHub Token", "[green]Set[/green]", f"...{gh_token[-4:]}")
-    else:
-        table.add_row("  GitHub Token", "[dim]Not Set[/dim]", "Optional: for repo scanning")
 
     try:
         import torch
@@ -307,13 +293,11 @@ def print_status() -> None:
 
 
 def print_providers() -> None:
-    """Print detailed LLM provider information."""
+    """Print LLM provider status using same detection logic as /status."""
     import sys as _sys
     safe_box = _sys.platform == "win32"
 
-    from src.llm.api.provider_factory import get_provider_status
-    status = get_provider_status()
-    active = status.pop("active_provider", "gemini")
+    active_provider = os.environ.get("LLM_PROVIDER", "gemini").lower()
 
     table = Table(
         title="[bold cyan]LLM Providers[/bold cyan]",
@@ -323,73 +307,38 @@ def print_providers() -> None:
         safe_box=safe_box,
     )
     table.add_column("Provider", width=15)
-    table.add_column("Status", width=12)
-    table.add_column("API Key", width=15)
+    table.add_column("Status", width=18)
     table.add_column("Default Model", width=30)
-    table.add_column("Free Tier", width=20)
 
-    free_tiers = {
-        "gemini": "Flash: 250 RPD",
-        "groq": "Llama 70B: 1000 RPD",
-    }
+    # Gemini — check both single and multi-key (same logic as /status)
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    gemini_keys = os.environ.get("GEMINI_API_KEYS", "")
+    gemini_count = len([k for k in gemini_keys.split(",") if k.strip()]) if gemini_keys else (1 if gemini_key else 0)
 
-    for name, info in status.items():
-        if name == "active_provider":
-            continue
-        marker = " [*]" if name == active else ""
-        configured = "[green]Ready[/green]" if info["configured"] else "[dim]Not Set[/dim]"
-        key_preview = info["key_preview"] or "--"
-        table.add_row(
-            f"{name}{marker}",
-            configured,
-            key_preview,
-            info["default_model"],
-            free_tiers.get(name, "--"),
-        )
+    marker = " [*]" if active_provider == "gemini" else ""
+    if gemini_count > 0:
+        table.add_row(f"Gemini{marker}", f"[green]{gemini_count} key(s) set[/green]", "gemini-2.5-flash")
+    else:
+        table.add_row(f"Gemini{marker}", "[dim]Not configured[/dim]", "gemini-2.5-flash")
+
+    # Groq — check both single and multi-key
+    groq_key = os.environ.get("GROQ_API_KEY")
+    groq_keys = os.environ.get("GROQ_API_KEYS", "")
+    groq_count = len([k for k in groq_keys.split(",") if k.strip()]) if groq_keys else (1 if groq_key else 0)
+
+    marker = " [*]" if active_provider == "groq" else ""
+    if groq_count > 0:
+        table.add_row(f"Groq{marker}", f"[green]{groq_count} key(s) set[/green]", "llama-3.3-70b-versatile")
+    else:
+        table.add_row(f"Groq{marker}", "[dim]Not configured[/dim]", "llama-3.3-70b-versatile")
 
     console.print(table)
     console.print()
-    console.print(f"  Active: [bold cyan]{active}[/bold cyan]")
+    console.print(f"  Active: [bold cyan]{active_provider}[/bold cyan]")
     model_override = os.environ.get("LLM_MODEL", "")
     if model_override:
         console.print(f"  Model override: [bold]{model_override}[/bold]")
-    console.print(f"  Change: set LLM_PROVIDER in .env")
-    console.print()
-
-
-def print_models() -> None:
-    """Print available models per provider."""
-    import sys as _sys
-    safe_box = _sys.platform == "win32"
-
-    table = Table(
-        title="[bold cyan]Available Models[/bold cyan]",
-        show_header=True,
-        header_style="bold",
-        border_style="cyan",
-        safe_box=safe_box,
-    )
-    table.add_column("Provider", width=10)
-    table.add_column("Model", width=40)
-    table.add_column("Free RPD", width=10, justify="right")
-    table.add_column("Notes", width=25)
-
-    # Gemini models
-    table.add_row("Gemini", "gemini-2.5-flash", "250", "Primary (recommended)")
-    table.add_row("Gemini", "gemini-2.5-flash-lite", "1,000", "Lighter, higher quota")
-    table.add_row("Gemini", "gemini-2.5-pro", "0", "[red]Removed from free tier[/red]")
-
-    table.add_row("", "", "", "")
-
-    # Groq models
-    table.add_row("Groq", "llama-3.3-70b-versatile", "1,000", "Best quality (recommended)")
-    table.add_row("Groq", "llama-3.1-8b-instant", "14,400", "Fastest, lower quality")
-    table.add_row("Groq", "qwen/qwen3-32b", "1,000", "Strong reasoning")
-    table.add_row("Groq", "meta-llama/llama-4-scout-17b-16e-instruct", "1,000", "Latest Llama 4")
-
-    console.print(table)
-    console.print()
-    console.print("  Set model: LLM_MODEL=<model-name> in .env")
+    console.print(f"  Change: set LLM_PROVIDER and LLM_MODEL in .env")
     console.print()
 
 
@@ -416,29 +365,38 @@ def print_version() -> None:
     console.print()
 
 
-async def run_interactive_scan(args: list[str]) -> None:
-    """Parse scan arguments and run the cascade with live progress."""
-    from rich.live import Live
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
-    from rich.layout import Layout
+async def run_interactive_scan(
+    args: list[str],
+    stage_override: str | None = None,
+    verbose_override: bool | None = None,
+    session: Any = None,
+) -> None:
+    """Parse scan arguments and run the cascade with live progress.
 
-    # Parse args
+    Supports both smart shorthand and legacy flags:
+      /scan <path>              Full cascade
+      /scan <path> sast         SAST-only (shorthand)
+      /scan <path> --stage sast Legacy flag (still works)
+      /quick <path>             Same as /scan <path> sast
+      /deep <path>              Same as /scan <path> --verbose
+    """
+    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
+
+    # Parse args — smart mode + legacy flags
     target = None
-    github = None
-    stage = "llm"
+    stage = stage_override or "llm"
     languages = None
     output = None
-    verbose = False
+    verbose = verbose_override if verbose_override is not None else False
 
     i = 0
     while i < len(args):
         arg = args[i]
-        if arg == "--github" or arg == "-g":
+        # Legacy flags (backward compatible)
+        if arg == "--stage" or arg == "-s":
             i += 1
-            github = args[i] if i < len(args) else None
-        elif arg == "--stage" or arg == "-s":
-            i += 1
-            stage = args[i] if i < len(args) else "llm"
+            if not stage_override:  # Don't override /quick or /deep
+                stage = args[i] if i < len(args) else "llm"
         elif arg == "--languages" or arg == "-l":
             i += 1
             languages = args[i] if i < len(args) else None
@@ -447,18 +405,39 @@ async def run_interactive_scan(args: list[str]) -> None:
             output = args[i] if i < len(args) else None
         elif arg in ("--verbose", "-v"):
             verbose = True
+        elif arg in ("--dashboard", "-d"):
+            pass  # Dashboard is now in post-scan menu, ignore silently
+        elif arg in ("--github", "-g"):
+            console.print("[yellow]  Note: --github is planned for a future release.[/yellow]")
+            return
+        elif arg in ("sast", "graph", "llm") and not stage_override:
+            # Smart shorthand: second positional arg = stage
+            stage = arg
         elif not arg.startswith("-"):
             target = arg
         i += 1
 
-    if not target and not github:
-        console.print("[red]  Error: Provide a path or --github repo[/red]")
-        return
+    # If no path given, prompt for one
+    if not target:
+        if session:
+            from prompt_toolkit.completion import PathCompleter as _PC
+            try:
+                target = session.prompt(
+                    "  Enter path to scan: ",
+                    completer=_PC(expanduser=True),
+                ).strip()
+            except (EOFError, KeyboardInterrupt):
+                return
+            if not target:
+                return
+        else:
+            console.print("[red]  Error: Provide a local path to scan.[/red]")
+            return
 
     # Show scan start
     from src.cli.banner import print_scan_start
     lang_list = languages.split(",") if languages else []
-    print_scan_start(target or github or "", lang_list, stage)
+    print_scan_start(target, lang_list, stage)
 
     # Run with progress
     with Progress(
@@ -474,27 +453,25 @@ async def run_interactive_scan(args: list[str]) -> None:
         # Stage 1: SAST
         progress.update(overall, description="[green]> Stage 1: SAST Analysis")
         sast_task = progress.add_task("[green]  CodeQL + Tree-sitter", total=100)
-        for i in range(0, 101, 10):
-            progress.update(sast_task, completed=i)
+        for j in range(0, 101, 10):
+            progress.update(sast_task, completed=j)
             import asyncio
             await asyncio.sleep(0.05)
         progress.update(overall, completed=40)
 
         if stage in ("graph", "llm"):
-            # Stage 2: Graph
             progress.update(overall, description="[cyan]* Stage 2: Graph Validation")
             graph_task = progress.add_task("[cyan]  CPG + Mini-GAT + Conformal", total=100)
-            for i in range(0, 101, 10):
-                progress.update(graph_task, completed=i)
+            for j in range(0, 101, 10):
+                progress.update(graph_task, completed=j)
                 await asyncio.sleep(0.05)
             progress.update(overall, completed=70)
 
         if stage == "llm":
-            # Stage 3: LLM
             progress.update(overall, description="[yellow]@ Stage 3: LLM Dual-Agent")
             llm_task = progress.add_task("[yellow]  Attacker <-> Defender", total=100)
-            for i in range(0, 101, 10):
-                progress.update(llm_task, completed=i)
+            for j in range(0, 101, 10):
+                progress.update(llm_task, completed=j)
                 await asyncio.sleep(0.05)
             progress.update(overall, completed=100)
 
@@ -503,7 +480,6 @@ async def run_interactive_scan(args: list[str]) -> None:
     console.print()
 
     # Run actual scan
-    import yaml
     from src.cli.main import load_config, _init_modules
     from src.orchestrator.pipeline import PipelineOrchestrator
     from src.sast.sarif.schema import Language
@@ -515,17 +491,16 @@ async def run_interactive_scan(args: list[str]) -> None:
     lang_list_enum = None
     if languages:
         lang_list_enum = []
-        for l in languages.split(","):
+        for lang in languages.split(","):
             try:
-                lang_list_enum.append(Language(l.strip()))
+                lang_list_enum.append(Language(lang.strip()))
             except ValueError:
                 pass
 
     result = await orchestrator.scan(
-        target=target or "",
+        target=target,
         languages=lang_list_enum,
         max_stage=stage,
-        github_repo=github,
     )
 
     # Display results
@@ -533,20 +508,48 @@ async def run_interactive_scan(args: list[str]) -> None:
     reporter = ConsoleReporter(verbose=verbose, show_cascade_stats=True)
     reporter.report(result)
 
-    # Save SARIF if requested
+    # Save SARIF if requested via legacy flag
     if output:
         from src.reporting.sarif_reporter import SARIFReporter
         sarif_reporter = SARIFReporter(config.get("reporting", {}).get("sarif", {}))
         sarif_reporter.write(result, output)
-        console.print(f"\n  [green]OK[/green] SARIF report saved to [bold]{output}[/bold]")
+        console.print(f"\n  [green]OK[/green] SARIF saved to [bold]{output}[/bold]")
 
-    # Offer HTML report
-    if result.total_findings > 0:
+    # Post-scan action menu
+    if result.total_findings > 0 and session:
+        # Pre-generate dashboard so 'd' is instant
+        from src.reporting.html_reporter import HTMLReporter
+        html_reporter = HTMLReporter(auto_open=False)
+        dashboard_path = html_reporter.generate(result)
+
         console.print()
         console.print(
-            "  [dim]Tip: Run[/dim] [bold cyan]report --html[/bold cyan] "
-            "[dim]for an interactive web dashboard[/dim]"
+            "  [bold cyan][d][/bold cyan] Open Dashboard    "
+            "[bold cyan][s][/bold cyan] Save SARIF    "
+            "[bold cyan][r][/bold cyan] Re-scan (SAST)    "
+            "[dim][Enter] Done[/dim]"
         )
+
+        try:
+            choice = session.prompt("  > ", default="").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            choice = ""
+
+        if choice == "d":
+            import webbrowser
+            webbrowser.open(str(Path(dashboard_path).resolve().as_uri()))
+            console.print(f"  [green]OK[/green] Dashboard opened")
+        elif choice == "s":
+            default_name = "sec-c-report.sarif"
+            try:
+                save_path = session.prompt(f"  Save to [{default_name}]: ", default=default_name).strip()
+            except (EOFError, KeyboardInterrupt):
+                save_path = default_name
+            from src.reporting.sarif_reporter import SARIFReporter
+            SARIFReporter(config.get("reporting", {}).get("sarif", {})).write(result, save_path or default_name)
+            console.print(f"  [green]OK[/green] Saved to [bold]{save_path or default_name}[/bold]")
+        elif choice == "r":
+            await run_interactive_scan([target], stage_override="sast", session=session)
 
 
 def run_interactive() -> None:
@@ -566,8 +569,7 @@ def run_interactive() -> None:
         complete_while_typing=True,
     )
 
-    console.print("  [dim]Type[/dim] [bold green]help[/bold green] [dim]for commands,[/dim] "
-                   "[bold green]Tab[/bold green] [dim]for autocomplete[/dim]")
+    console.print("  [dim]Type /help for commands, Tab for autocomplete[/dim]")
     console.print()
 
     while True:
@@ -590,7 +592,8 @@ def run_interactive() -> None:
             console.print("  [dim]Goodbye![/dim]")
             break
         elif cmd == "clear":
-            console.clear()
+            import os
+            os.system("cls" if os.name == "nt" else "clear")
             from src.cli.banner import print_mini_banner
             print_mini_banner(console)
         elif cmd == "help":
@@ -604,23 +607,43 @@ def run_interactive() -> None:
             console.print_json(json.dumps(config, indent=2, default=str))
         elif cmd == "scan":
             import asyncio
-            asyncio.run(run_interactive_scan(parts[1:]))
+            asyncio.run(run_interactive_scan(parts[1:], session=session))
+        elif cmd == "quick":
+            import asyncio
+            asyncio.run(run_interactive_scan(parts[1:], stage_override="sast", session=session))
+        elif cmd == "deep":
+            import asyncio
+            asyncio.run(run_interactive_scan(parts[1:], stage_override="llm", verbose_override=True, session=session))
         elif cmd == "report":
             if len(parts) < 2:
                 console.print("[red]  Usage: report <file.sarif>[/red]")
             else:
-                from src.sast.sarif.parser import SARIFParser
-                from src.sast.sarif.schema import ScanResult
-                from src.reporting.console_reporter import ConsoleReporter
-
-                parser = SARIFParser()
-                findings = parser.parse_file(parts[1])
-                result = ScanResult(findings=findings, scan_target=parts[1])
-                ConsoleReporter(verbose=True).report(result)
+                import json as _json
+                from pathlib import Path as _Path
+                sarif_path = parts[1]
+                if not _Path(sarif_path).exists():
+                    console.print(f"[red]  Error: File not found: {sarif_path}[/red]")
+                else:
+                    try:
+                        from src.sast.sarif.parser import SARIFParser
+                        from src.sast.sarif.schema import ScanResult
+                        parser = SARIFParser()
+                        findings = parser.parse_file(sarif_path)
+                        result = ScanResult(findings=findings, scan_target=sarif_path)
+                        # Check for --console flag
+                        if "--console" in parts:
+                            from src.reporting.console_reporter import ConsoleReporter
+                            ConsoleReporter(verbose=True).report(result)
+                        else:
+                            # Default: open dashboard
+                            from src.reporting.html_reporter import HTMLReporter
+                            reporter = HTMLReporter(auto_open=True)
+                            path = reporter.generate(result)
+                            console.print(f"  [green]OK[/green] Dashboard opened: [bold cyan]{path}[/bold cyan]")
+                    except (_json.JSONDecodeError, ValueError) as e:
+                        console.print(f"[red]  Error: Invalid SARIF file: {e}[/red]")
         elif cmd == "providers":
             print_providers()
-        elif cmd == "models":
-            print_models()
         elif cmd == "version":
             print_version()
         elif cmd == "history":
@@ -628,4 +651,4 @@ def run_interactive() -> None:
             for item in list(session.history.get_strings())[-15:]:
                 console.print(f"    [green]>[/green] {item}")
         else:
-            console.print(f"  [red]Unknown command: {cmd}[/red]. Type [bold]help[/bold] for available commands.")
+            console.print(f"  [dim]Unknown:[/dim] {cmd} [dim]— type /help for commands[/dim]")

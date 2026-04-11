@@ -1,0 +1,106 @@
+SEC-C Benchmark Runner
+Repos: 15
+Stage: graph
+============================================================
+
+============================================================
+  Scanning: 01_taskflow
+============================================================
+  Results: 10 findings | SAST=9 GNN=0 LLM=0 Unresolved=0
+  Time: 18.5s
+
+============================================================
+  Scanning: 02_pymetrics
+============================================================
+  Results: 11 findings | SAST=8 GNN=0 LLM=0 Unresolved=0
+  Time: 47.1s
+
+============================================================
+  Scanning: 03_mailbridge
+============================================================
+  Results: 11 findings | SAST=8 GNN=0 LLM=0 Unresolved=0
+  Time: 46.9s
+
+============================================================
+  Scanning: 04_docvault
+============================================================
+  Results: 22 findings | SAST=18 GNN=0 LLM=0 Unresolved=0
+  Time: 51.2s
+
+============================================================
+  Scanning: 05_authkit
+============================================================
+  Results: 5 findings | SAST=5 GNN=0 LLM=0 Unresolved=0
+  Time: 56.4s
+
+============================================================
+  Scanning: 06_dataflow
+============================================================
+  Results: 13 findings | SAST=13 GNN=0 LLM=0 Unresolved=0
+  Time: 49.5s
+
+============================================================
+  Scanning: 07_shopfront
+============================================================
+  Results: 15 findings | SAST=10 GNN=0 LLM=0 Unresolved=0
+  Time: 83.0s
+
+============================================================
+  Scanning: 08_logstream
+============================================================
+  Results: 17 findings | SAST=10 GNN=0 LLM=0 Unresolved=0
+  Time: 105.9s
+
+============================================================
+  Scanning: 09_chatbridge
+============================================================
+  Results: 4 findings | SAST=3 GNN=0 LLM=0 Unresolved=0
+  Time: 30.9s
+
+============================================================
+  Scanning: 10_inventoryapi
+============================================================
+  Results: 2 findings | SAST=2 GNN=0 LLM=0 Unresolved=0
+  Time: 20.5s
+
+============================================================
+  Scanning: 11_reportgen
+============================================================
+  Results: 9 findings | SAST=9 GNN=0 LLM=0 Unresolved=0
+  Time: 18.8s
+
+============================================================
+  Scanning: 12_sysmon
+============================================================
+  Results: 22 findings | SAST=22 GNN=0 LLM=0 Unresolved=0
+  Time: 13.1s
+
+============================================================
+  Scanning: 13_netprobe
+============================================================
+  Results: 23 findings | SAST=23 GNN=0 LLM=0 Unresolved=0
+  Time: 11.6s
+
+============================================================
+  Scanning: 14_configsvc
+============================================================
+  Results: 13 findings | SAST=10 GNN=0 LLM=0 Unresolved=0
+  Time: 99.6s
+
+============================================================
+  Scanning: 15_filesync
+============================================================
+  Results: 7 findings | SAST=7 GNN=0 LLM=0 Unresolved=0
+  Time: 63.7s
+
+Raw results saved to D:\sec-c\docs\Test_Check\per_repo_results.json
+Report saved to D:\sec-c\docs\Test_Check\benchmark_results.md
+
+============================================================
+  BENCHMARK COMPLETE
+============================================================
+  Repos scanned: 15
+  Total findings: 184
+  SAST resolved: 157 (85%)
+  GNN resolved:  0 (0%)
+  LLM resolved:  0 (0%)

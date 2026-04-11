@@ -19,7 +19,7 @@ sec-c scan tests/demo_samples/stage2_escalate.c
 sec-c scan tests/demo_samples/stage3_llm.py
 
 # Demo with HTML dashboard
-sec-c scan tests/demo_samples/ --html
+sec-c scan tests/demo_samples/ --dashboard
 ```
 
 ## Test Cases

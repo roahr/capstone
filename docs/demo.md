@@ -23,18 +23,18 @@
   /scan D:\sec-c\sample_testcases\python --stage sast
 
   Full cascade on Python (shows all 3 stages resolving findings):
-  /scan D:\sec-c\sample_testcases\python --html
+  /scan D:\sec-c\sample_testcases\python --dashboard
   This auto-opens the HTML report in the browser — the cyber-themed dashboard with Orbitron font, pipeline visualization, and the floating methodology
   panel.
 
   Multi-language scan:
-  /scan D:\sec-c\sample_testcases --languages python,javascript,java,c,go --html
+  /scan D:\sec-c\sample_testcases --languages python,javascript,java,c,go --dashboard
 
   Scan with SARIF output + HTML:
-  /scan D:\sec-c\sample_testcases --output D:\sec-c\results.sarif --html --verbose
+  /scan D:\sec-c\sample_testcases --output D:\sec-c\results.sarif --dashboard --verbose
 
   GitHub repo scan (public):
-  /scan --github OWASP/WebGoat --languages java --stage graph --html
+  /scan --github OWASP/WebGoat --languages java --stage graph --dashboard
 
   Phase 4: Report Formats
 
@@ -42,7 +42,7 @@
   /report D:\sec-c\results.sarif
 
   HTML dashboard from saved SARIF:
-  /report D:\sec-c\results.sarif --html
+  /report D:\sec-c\results.sarif --dashboard
 
   Print to PDF: In the HTML report, click the "Print Report" button in the nav bar (or Ctrl+P in browser) — it renders a clean A4 PDF with proper page
   breaks.
@@ -73,7 +73,7 @@
   ├──────┼──────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ 3    │ /scan sample_testcases/python --stage sast           │ Fast SAST scan with live progress                        │
   ├──────┼──────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
-  │ 4    │ /scan sample_testcases/python --html                 │ Full cascade + HTML dashboard auto-opens                 │
+  │ 4    │ /scan sample_testcases/python --dashboard                 │ Full cascade + HTML dashboard auto-opens                 │
   ├──────┼──────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ 5    │ (in browser) Click findings, filter, sort            │ Interactive report with code snippets + analysis         │
   ├──────┼──────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
@@ -81,9 +81,9 @@
   ├──────┼──────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ 7    │ (in browser) Click Print Report                      │ Clean PDF with A4 formatting                             │
   ├──────┼──────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
-  │ 8    │ /scan sample_testcases --output results.sarif --html │ Multi-language full scan — 5 languages, 56 findings      │
+  │ 8    │ /scan sample_testcases --output results.sarif --dashboard │ Multi-language full scan — 5 languages, 56 findings      │
   ├──────┼──────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
-  │ 9    │ /scan --github OWASP/WebGoat --languages java --html │ Live GitHub repo scan                                    │
+  │ 9    │ /scan --github OWASP/WebGoat --languages java --dashboard │ Live GitHub repo scan                                    │
   ├──────┼──────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤
   │ 10   │ /providers then /models                              │ Show LLM infrastructure                                  │
   ├──────┼──────────────────────────────────────────────────────┼──────────────────────────────────────────────────────────┤

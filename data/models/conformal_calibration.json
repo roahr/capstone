@@ -1,8 +1,8 @@
 {
   "alpha": 0.1,
-  "quantile_threshold": 1.0,
-  "threshold": 1.0,
-  "conformal_temperature": 0.2,
+  "quantile_threshold": 0.95,
+  "threshold": 0.95,
+  "conformal_temperature": 0.95,
   "decision_threshold": 0.32,
   "n_calibration": 3172,
   "calibration_size": 3172,

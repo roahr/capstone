@@ -1,0 +1,1500 @@
+[
+  {
+    "repo": "01_taskflow",
+    "language": "Python",
+    "scan_time_sec": 101.5,
+    "exit_code": 0,
+    "total_findings": 10,
+    "resolved_sast": 9,
+    "resolved_graph": 0,
+    "resolved_llm": 1,
+    "unresolved": 0,
+    "cascade_efficiency": "90.0%",
+    "findings_detail": [
+      {
+        "rule_id": "py/sql-injection",
+        "message": "This SQL query depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "database.py",
+        "line": 66
+      },
+      {
+        "rule_id": "py/flask-debug",
+        "message": "A Flask app appears to be run in debug mode. This may allow an attacker to run arbitrary code throug",
+        "level": "error",
+        "file": "app.py",
+        "line": 86
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/01_taskflow/app.py",
+        "line": 81
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/01_taskflow/app.py",
+        "line": 7
+      },
+      {
+        "rule_id": "ts/xss",
+        "message": "Potential XSS via unescaped user input in HTML output",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/01_taskflow/app.py",
+        "line": 76
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/01_taskflow/database.py",
+        "line": 66
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/01_taskflow/database.py",
+        "line": 46
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/01_taskflow/database.py",
+        "line": 39
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/01_taskflow/database.py",
+        "line": 25
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/01_taskflow/database.py",
+        "line": 16
+      }
+    ]
+  },
+  {
+    "repo": "02_pymetrics",
+    "language": "Python",
+    "scan_time_sec": 95.4,
+    "exit_code": 0,
+    "total_findings": 11,
+    "resolved_sast": 8,
+    "resolved_graph": 2,
+    "resolved_llm": 1,
+    "unresolved": 0,
+    "cascade_efficiency": "72.7%",
+    "findings_detail": [
+      {
+        "rule_id": "py/code-injection",
+        "message": "This code execution depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "query_engine.py",
+        "line": 32
+      },
+      {
+        "rule_id": "py/stack-trace-exposure",
+        "message": "[Stack trace information](1) flows to this location and may be exposed to an external user.",
+        "level": "error",
+        "file": "dashboard.py",
+        "line": 54
+      },
+      {
+        "rule_id": "py/flask-debug",
+        "message": "A Flask app appears to be run in debug mode. This may allow an attacker to run arbitrary code throug",
+        "level": "error",
+        "file": "dashboard.py",
+        "line": 89
+      },
+      {
+        "rule_id": "py/unsafe-deserialization",
+        "message": "Unsafe deserialization depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "query_engine.py",
+        "line": 40
+      },
+      {
+        "rule_id": "ts/os_command_injection",
+        "message": "Potential OS command injection via unsanitized input",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/02_pymetrics/config_loader.py",
+        "line": 42
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/02_pymetrics/config_loader.py",
+        "line": 25
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/02_pymetrics/config_loader.py",
+        "line": 16
+      },
+      {
+        "rule_id": "ts/pickle_deserialization",
+        "message": "Deserialization of untrusted data can lead to RCE",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/02_pymetrics/config_loader.py",
+        "line": 17
+      },
+      {
+        "rule_id": "ts/xss",
+        "message": "Potential XSS via unescaped user input in HTML output",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/02_pymetrics/dashboard.py",
+        "line": 35
+      },
+      {
+        "rule_id": "ts/pickle_deserialization",
+        "message": "Deserialization of untrusted data can lead to RCE",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/02_pymetrics/query_engine.py",
+        "line": 40
+      },
+      {
+        "rule_id": "ts/eval_injection",
+        "message": "Dynamic code execution with potentially untrusted input",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/02_pymetrics/query_engine.py",
+        "line": 32
+      }
+    ]
+  },
+  {
+    "repo": "03_mailbridge",
+    "language": "Python",
+    "scan_time_sec": 42.6,
+    "exit_code": 0,
+    "total_findings": 11,
+    "resolved_sast": 8,
+    "resolved_graph": 0,
+    "resolved_llm": 3,
+    "unresolved": 0,
+    "cascade_efficiency": "72.7%",
+    "findings_detail": [
+      {
+        "rule_id": "py/command-line-injection",
+        "message": "This command line depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "server.py",
+        "line": 67
+      },
+      {
+        "rule_id": "py/sql-injection",
+        "message": "This SQL query depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "forwarder.py",
+        "line": 47
+      },
+      {
+        "rule_id": "py/stack-trace-exposure",
+        "message": "[Stack trace information](1) flows to this location and may be exposed to an external user.",
+        "level": "error",
+        "file": "server.py",
+        "line": 44
+      },
+      {
+        "rule_id": "py/flask-debug",
+        "message": "A Flask app appears to be run in debug mode. This may allow an attacker to run arbitrary code throug",
+        "level": "error",
+        "file": "server.py",
+        "line": 89
+      },
+      {
+        "rule_id": "py/full-ssrf",
+        "message": "The full URL of this request depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "server.py",
+        "line": 77
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/03_mailbridge/forwarder.py",
+        "line": 93
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/03_mailbridge/forwarder.py",
+        "line": 47
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/03_mailbridge/forwarder.py",
+        "line": 26
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/03_mailbridge/forwarder.py",
+        "line": 18
+      },
+      {
+        "rule_id": "ts/os_command_injection",
+        "message": "Potential OS command injection via unsanitized input",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/03_mailbridge/server.py",
+        "line": 67
+      },
+      {
+        "rule_id": "ts/hardcoded_secret",
+        "message": "Hardcoded password or API key detected",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/03_mailbridge/webhook.py",
+        "line": 8
+      }
+    ]
+  },
+  {
+    "repo": "04_docvault",
+    "language": "Python",
+    "scan_time_sec": 57.5,
+    "exit_code": 0,
+    "total_findings": 22,
+    "resolved_sast": 18,
+    "resolved_graph": 1,
+    "resolved_llm": 3,
+    "unresolved": 0,
+    "cascade_efficiency": "81.8%",
+    "findings_detail": [
+      {
+        "rule_id": "py/path-injection",
+        "message": "This path depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "api.py",
+        "line": 42
+      },
+      {
+        "rule_id": "py/path-injection",
+        "message": "This path depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "api.py",
+        "line": 47
+      },
+      {
+        "rule_id": "py/path-injection",
+        "message": "This path depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "storage.py",
+        "line": 35
+      },
+      {
+        "rule_id": "py/path-injection",
+        "message": "This path depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "storage.py",
+        "line": 67
+      },
+      {
+        "rule_id": "py/path-injection",
+        "message": "This path depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "storage.py",
+        "line": 68
+      },
+      {
+        "rule_id": "py/stack-trace-exposure",
+        "message": "[Stack trace information](1) flows to this location and may be exposed to an external user.",
+        "level": "error",
+        "file": "api.py",
+        "line": 69
+      },
+      {
+        "rule_id": "py/weak-sensitive-data-hashing",
+        "message": "[Sensitive data (password)](1) is used in a hashing algorithm (SHA256) that is insecure for password",
+        "level": "warning",
+        "file": "auth.py",
+        "line": 39
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/api.py",
+        "line": 47
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/api.py",
+        "line": 41
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/auth.py",
+        "line": 63
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/auth.py",
+        "line": 58
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/auth.py",
+        "line": 50
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/auth.py",
+        "line": 16
+      },
+      {
+        "rule_id": "ts/hardcoded_secret",
+        "message": "Hardcoded password or API key detected",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/auth.py",
+        "line": 63
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/storage.py",
+        "line": 58
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/storage.py",
+        "line": 19
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/storage.py",
+        "line": 66
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/storage.py",
+        "line": 52
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/storage.py",
+        "line": 49
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/storage.py",
+        "line": 35
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/storage.py",
+        "line": 34
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/04_docvault/storage.py",
+        "line": 8
+      }
+    ]
+  },
+  {
+    "repo": "05_authkit",
+    "language": "Python",
+    "scan_time_sec": 48.2,
+    "exit_code": 0,
+    "total_findings": 5,
+    "resolved_sast": 5,
+    "resolved_graph": 0,
+    "resolved_llm": 0,
+    "unresolved": 0,
+    "cascade_efficiency": "100.0%",
+    "findings_detail": [
+      {
+        "rule_id": "py/weak-sensitive-data-hashing",
+        "message": "[Sensitive data (password)](1) is used in a hashing algorithm (MD5) that is insecure for password ha",
+        "level": "warning",
+        "file": "passwords.py",
+        "line": 15
+      },
+      {
+        "rule_id": "py/weak-sensitive-data-hashing",
+        "message": "[Sensitive data (password)](1) is used in a hashing algorithm (MD5) that is insecure for password ha",
+        "level": "warning",
+        "file": "passwords.py",
+        "line": 25
+      },
+      {
+        "rule_id": "py/weak-sensitive-data-hashing",
+        "message": "[Sensitive data (secret)](1) is used in a hashing algorithm (MD5) that is insecure.\n[Sensitive data ",
+        "level": "warning",
+        "file": "tokens.py",
+        "line": 17
+      },
+      {
+        "rule_id": "ts/hardcoded_secret",
+        "message": "Hardcoded password or API key detected",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/05_authkit/session.py",
+        "line": 7
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/05_authkit/tokens.py",
+        "line": 13
+      }
+    ]
+  },
+  {
+    "repo": "06_dataflow",
+    "language": "Python",
+    "scan_time_sec": 29.3,
+    "exit_code": 0,
+    "total_findings": 13,
+    "resolved_sast": 13,
+    "resolved_graph": 0,
+    "resolved_llm": 0,
+    "unresolved": 0,
+    "cascade_efficiency": "100.0%",
+    "findings_detail": [
+      {
+        "rule_id": "ts/os_command_injection",
+        "message": "Potential OS command injection via unsanitized input",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/cli.py",
+        "line": 50
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/connectors.py",
+        "line": 57
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/connectors.py",
+        "line": 50
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/connectors.py",
+        "line": 46
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/connectors.py",
+        "line": 33
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/connectors.py",
+        "line": 22
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/pipeline.py",
+        "line": 37
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/pipeline.py",
+        "line": 32
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/pipeline.py",
+        "line": 27
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/pipeline.py",
+        "line": 20
+      },
+      {
+        "rule_id": "ts/pickle_deserialization",
+        "message": "Deserialization of untrusted data can lead to RCE",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/pipeline.py",
+        "line": 33
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation/formatting in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/transforms.py",
+        "line": 57
+      },
+      {
+        "rule_id": "ts/eval_injection",
+        "message": "Dynamic code execution with potentially untrusted input",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/06_dataflow/transforms.py",
+        "line": 37
+      }
+    ]
+  },
+  {
+    "repo": "07_shopfront",
+    "language": "JavaScript",
+    "scan_time_sec": 272.4,
+    "exit_code": 0,
+    "total_findings": 15,
+    "resolved_sast": 10,
+    "resolved_graph": 0,
+    "resolved_llm": 5,
+    "unresolved": 0,
+    "cascade_efficiency": "66.7%",
+    "findings_detail": [
+      {
+        "rule_id": "js/sql-injection",
+        "message": "This query string depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "routes/products.js",
+        "line": 39
+      },
+      {
+        "rule_id": "js/code-injection",
+        "message": "This code execution depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "routes/products.js",
+        "line": 71
+      },
+      {
+        "rule_id": "js/insecure-helmet-configuration",
+        "message": "Helmet security middleware, configured with security setting [contentSecurityPolicy](1) set to 'fals",
+        "level": "error",
+        "file": "server.js",
+        "line": 16
+      },
+      {
+        "rule_id": "js/missing-rate-limiting",
+        "message": "This route handler performs [a database access](1), but is not rate-limited.\nThis route handler perf",
+        "level": "warning",
+        "file": "routes/products.js",
+        "line": 20
+      },
+      {
+        "rule_id": "js/missing-rate-limiting",
+        "message": "This route handler performs [a database access](1), but is not rate-limited.",
+        "level": "warning",
+        "file": "routes/products.js",
+        "line": 31
+      },
+      {
+        "rule_id": "js/missing-rate-limiting",
+        "message": "This route handler performs [a database access](1), but is not rate-limited.",
+        "level": "warning",
+        "file": "routes/products.js",
+        "line": 44
+      },
+      {
+        "rule_id": "js/missing-rate-limiting",
+        "message": "This route handler performs [a database access](1), but is not rate-limited.",
+        "level": "warning",
+        "file": "routes/products.js",
+        "line": 60
+      },
+      {
+        "rule_id": "js/prototype-pollution-utility",
+        "message": "Properties are copied from [source](1) to [target](2) without guarding against prototype pollution.",
+        "level": "warning",
+        "file": "routes/admin.js",
+        "line": 28
+      },
+      {
+        "rule_id": "js/remote-property-injection",
+        "message": "A property name to write to depends on a [user-provided value](1).",
+        "level": "warning",
+        "file": "routes/admin.js",
+        "line": 24
+      },
+      {
+        "rule_id": "js/remote-property-injection",
+        "message": "A property name to write to depends on a [user-provided value](1).",
+        "level": "warning",
+        "file": "routes/admin.js",
+        "line": 28
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/07_shopfront/server.js",
+        "line": 21
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/07_shopfront/server.js",
+        "line": 14
+      },
+      {
+        "rule_id": "ts/eval_injection",
+        "message": "Dynamic code execution with eval() or Function()",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/07_shopfront/routes/products.js",
+        "line": 71
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via template literal or concatenation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/07_shopfront/routes/products.js",
+        "line": 39
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/07_shopfront/routes/products.js",
+        "line": 7
+      }
+    ]
+  },
+  {
+    "repo": "08_logstream",
+    "language": "JavaScript",
+    "scan_time_sec": 298.1,
+    "exit_code": 0,
+    "total_findings": 17,
+    "resolved_sast": 10,
+    "resolved_graph": 0,
+    "resolved_llm": 7,
+    "unresolved": 0,
+    "cascade_efficiency": "58.8%",
+    "findings_detail": [
+      {
+        "rule_id": "js/path-injection",
+        "message": "This path depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "handlers/export.js",
+        "line": 11
+      },
+      {
+        "rule_id": "js/path-injection",
+        "message": "This path depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "handlers/export.js",
+        "line": 24
+      },
+      {
+        "rule_id": "js/path-injection",
+        "message": "This path depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "handlers/export.js",
+        "line": 27
+      },
+      {
+        "rule_id": "js/command-line-injection",
+        "message": "This command line depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "handlers/export.js",
+        "line": 41
+      },
+      {
+        "rule_id": "js/shell-command-injection-from-environment",
+        "message": "This shell command depends on an uncontrolled [absolute path](1).",
+        "level": "warning",
+        "file": "handlers/export.js",
+        "line": 41
+      },
+      {
+        "rule_id": "js/sql-injection",
+        "message": "This query string depends on a [user-provided value](1).\nThis query string depends on a [user-provid",
+        "level": "error",
+        "file": "storage/db.js",
+        "line": 38
+      },
+      {
+        "rule_id": "js/missing-rate-limiting",
+        "message": "This route handler performs [a file system access](1), but is not rate-limited.\nThis route handler p",
+        "level": "warning",
+        "file": "index.js",
+        "line": 40
+      },
+      {
+        "rule_id": "js/indirect-command-line-injection",
+        "message": "This command depends on an unsanitized [environment variable](1).",
+        "level": "warning",
+        "file": "handlers/export.js",
+        "line": 41
+      },
+      {
+        "rule_id": "js/file-system-race",
+        "message": "The file may have changed since it [was checked](1).",
+        "level": "warning",
+        "file": "handlers/export.js",
+        "line": 24
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via template literal or concatenation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/08_logstream/index.js",
+        "line": 38
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/08_logstream/index.js",
+        "line": 16
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/08_logstream/index.js",
+        "line": 12
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via template literal or concatenation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/08_logstream/handlers/export.js",
+        "line": 15
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/08_logstream/handlers/export.js",
+        "line": 45
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/08_logstream/handlers/export.js",
+        "line": 35
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/08_logstream/handlers/export.js",
+        "line": 8
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via template literal or concatenation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/08_logstream/handlers/query.js",
+        "line": 48
+      }
+    ]
+  },
+  {
+    "repo": "09_chatbridge",
+    "language": "JavaScript",
+    "scan_time_sec": 74.2,
+    "exit_code": 0,
+    "total_findings": 4,
+    "resolved_sast": 3,
+    "resolved_graph": 0,
+    "resolved_llm": 1,
+    "unresolved": 0,
+    "cascade_efficiency": "75.0%",
+    "findings_detail": [
+      {
+        "rule_id": "js/sql-injection",
+        "message": "This query string depends on a [user-provided value](1).\nThis query string depends on a [user-provid",
+        "level": "error",
+        "file": "app.js",
+        "line": 33
+      },
+      {
+        "rule_id": "js/missing-rate-limiting",
+        "message": "This route handler performs [a database access](1), but is not rate-limited.",
+        "level": "warning",
+        "file": "app.js",
+        "line": 27
+      },
+      {
+        "rule_id": "ts/eval_injection",
+        "message": "Dynamic code execution with eval() or Function()",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/09_chatbridge/app.js",
+        "line": 52
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/09_chatbridge/app.js",
+        "line": 13
+      }
+    ]
+  },
+  {
+    "repo": "10_inventoryapi",
+    "language": "Java",
+    "scan_time_sec": 12.0,
+    "exit_code": 0,
+    "total_findings": 2,
+    "resolved_sast": 2,
+    "resolved_graph": 0,
+    "resolved_llm": 0,
+    "unresolved": 0,
+    "cascade_efficiency": "100.0%",
+    "findings_detail": [
+      {
+        "rule_id": "ts/deserialization",
+        "message": "Deserialization of untrusted data can lead to RCE",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/10_inventoryapi/src/main/java/com/inventory/InventoryService.java",
+        "line": 53
+      },
+      {
+        "rule_id": "ts/xxe",
+        "message": "Potential XXE via XML parser without disabled external entities",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/10_inventoryapi/src/main/java/com/inventory/XmlImporter.java",
+        "line": 22
+      }
+    ]
+  },
+  {
+    "repo": "11_reportgen",
+    "language": "Java",
+    "scan_time_sec": 15.0,
+    "exit_code": 0,
+    "total_findings": 9,
+    "resolved_sast": 9,
+    "resolved_graph": 0,
+    "resolved_llm": 0,
+    "unresolved": 0,
+    "cascade_efficiency": "100.0%",
+    "findings_detail": [
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/11_reportgen/src/main/java/com/reportgen/FileHandler.java",
+        "line": 59
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/11_reportgen/src/main/java/com/reportgen/FileHandler.java",
+        "line": 53
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/11_reportgen/src/main/java/com/reportgen/FileHandler.java",
+        "line": 50
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/11_reportgen/src/main/java/com/reportgen/FileHandler.java",
+        "line": 28
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/11_reportgen/src/main/java/com/reportgen/FileHandler.java",
+        "line": 58
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/11_reportgen/src/main/java/com/reportgen/FileHandler.java",
+        "line": 35
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/11_reportgen/src/main/java/com/reportgen/FileHandler.java",
+        "line": 27
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/11_reportgen/src/main/java/com/reportgen/ReportController.java",
+        "line": 63
+      },
+      {
+        "rule_id": "ts/deserialization",
+        "message": "Deserialization of untrusted data can lead to RCE",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/11_reportgen/src/main/java/com/reportgen/TemplateEngine.java",
+        "line": 64
+      }
+    ]
+  },
+  {
+    "repo": "12_sysmon",
+    "language": "C",
+    "scan_time_sec": 15.8,
+    "exit_code": 0,
+    "total_findings": 22,
+    "resolved_sast": 22,
+    "resolved_graph": 0,
+    "resolved_llm": 0,
+    "unresolved": 0,
+    "cascade_efficiency": "100.0%",
+    "findings_detail": [
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/collector.c",
+        "line": 56
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/collector.c",
+        "line": 42
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/collector.c",
+        "line": 26
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/collector.c",
+        "line": 8
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/collector.c",
+        "line": 63
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/collector.c",
+        "line": 56
+      },
+      {
+        "rule_id": "ts/command_injection",
+        "message": "Potential command injection via system() or exec()",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/collector.c",
+        "line": 37
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/logger.c",
+        "line": 32
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/logger.c",
+        "line": 14
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/logger.c",
+        "line": 35
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/logger.c",
+        "line": 19
+      },
+      {
+        "rule_id": "ts/use_after_free",
+        "message": "Potential use-after-free \u2014 memory accessed after deallocation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/logger.c",
+        "line": 71
+      },
+      {
+        "rule_id": "ts/use_after_free",
+        "message": "Potential use-after-free \u2014 memory accessed after deallocation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/logger.c",
+        "line": 58
+      },
+      {
+        "rule_id": "ts/use_after_free",
+        "message": "Potential use-after-free \u2014 memory accessed after deallocation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/logger.c",
+        "line": 20
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/main.c",
+        "line": 30
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/main.c",
+        "line": 26
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/main.c",
+        "line": 15
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/main.c",
+        "line": 83
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/main.c",
+        "line": 62
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/main.c",
+        "line": 58
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/main.c",
+        "line": 37
+      },
+      {
+        "rule_id": "ts/use_after_free",
+        "message": "Potential use-after-free \u2014 memory accessed after deallocation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/12_sysmon/src/main.c",
+        "line": 76
+      }
+    ]
+  },
+  {
+    "repo": "13_netprobe",
+    "language": "C",
+    "scan_time_sec": 14.4,
+    "exit_code": 0,
+    "total_findings": 23,
+    "resolved_sast": 23,
+    "resolved_graph": 0,
+    "resolved_llm": 0,
+    "unresolved": 0,
+    "cascade_efficiency": "100.0%",
+    "findings_detail": [
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/dns.c",
+        "line": 54
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/dns.c",
+        "line": 43
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/dns.c",
+        "line": 15
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/dns.c",
+        "line": 31
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/dns.c",
+        "line": 6
+      },
+      {
+        "rule_id": "ts/command_injection",
+        "message": "Potential command injection via system() or exec()",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/dns.c",
+        "line": 48
+      },
+      {
+        "rule_id": "ts/command_injection",
+        "message": "Potential command injection via system() or exec()",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/dns.c",
+        "line": 32
+      },
+      {
+        "rule_id": "ts/command_injection",
+        "message": "Potential command injection via system() or exec()",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/dns.c",
+        "line": 11
+      },
+      {
+        "rule_id": "ts/use_after_free",
+        "message": "Potential use-after-free \u2014 memory accessed after deallocation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/dns.c",
+        "line": 67
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 38
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 24
+      },
+      {
+        "rule_id": "ts/buffer_overflow",
+        "message": "Potential buffer overflow via unsafe string function",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 15
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 66
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 62
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 59
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 54
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 9
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 8
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 7
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 6
+      },
+      {
+        "rule_id": "ts/format_string",
+        "message": "Potential format string vulnerability \u2014 user input as format string",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 5
+      },
+      {
+        "rule_id": "ts/use_after_free",
+        "message": "Potential use-after-free \u2014 memory accessed after deallocation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/main.c",
+        "line": 64
+      },
+      {
+        "rule_id": "ts/use_after_free",
+        "message": "Potential use-after-free \u2014 memory accessed after deallocation",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/13_netprobe/src/parser.c",
+        "line": 54
+      }
+    ]
+  },
+  {
+    "repo": "14_configsvc",
+    "language": "Go",
+    "scan_time_sec": 84.5,
+    "exit_code": 0,
+    "total_findings": 13,
+    "resolved_sast": 10,
+    "resolved_graph": 1,
+    "resolved_llm": 2,
+    "unresolved": 0,
+    "cascade_efficiency": "76.9%",
+    "findings_detail": [
+      {
+        "rule_id": "go/path-injection",
+        "message": "This path depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "db/store.go",
+        "line": 61
+      },
+      {
+        "rule_id": "go/command-injection",
+        "message": "This command depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "handlers/config.go",
+        "line": 97
+      },
+      {
+        "rule_id": "go/sql-injection",
+        "message": "This query depends on a [user-provided value](1).",
+        "level": "error",
+        "file": "db/store.go",
+        "line": 41
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/db/store.go",
+        "line": 90
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/db/store.go",
+        "line": 56
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/db/store.go",
+        "line": 51
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/db/store.go",
+        "line": 41
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/db/store.go",
+        "line": 22
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/db/store.go",
+        "line": 61
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/handlers/config.go",
+        "line": 74
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/handlers/config.go",
+        "line": 57
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/handlers/config.go",
+        "line": 31
+      },
+      {
+        "rule_id": "ts/command_injection",
+        "message": "Potential command injection via os/exec",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/14_configsvc/handlers/config.go",
+        "line": 97
+      }
+    ]
+  },
+  {
+    "repo": "15_filesync",
+    "language": "Go",
+    "scan_time_sec": 17.1,
+    "exit_code": 0,
+    "total_findings": 7,
+    "resolved_sast": 7,
+    "resolved_graph": 0,
+    "resolved_llm": 0,
+    "unresolved": 0,
+    "cascade_efficiency": "100.0%",
+    "findings_detail": [
+      {
+        "rule_id": "ts/command_injection",
+        "message": "Potential command injection via os/exec",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/15_filesync/sync/remote.go",
+        "line": 53
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/15_filesync/sync/transfer.go",
+        "line": 62
+      },
+      {
+        "rule_id": "ts/sql_injection",
+        "message": "Potential SQL injection via string concatenation in query",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/15_filesync/sync/transfer.go",
+        "line": 58
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/15_filesync/sync/transfer.go",
+        "line": 119
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/15_filesync/sync/transfer.go",
+        "line": 104
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/15_filesync/sync/transfer.go",
+        "line": 103
+      },
+      {
+        "rule_id": "ts/path_traversal",
+        "message": "Potential path traversal via user-controlled file path",
+        "level": "error",
+        "file": "D:/sec-c/Vulnerable_Repos/15_filesync/sync/transfer.go",
+        "line": 90
+      }
+    ]
+  }
+]
