@@ -11,7 +11,8 @@ Complete knowledge transfer documentation for Module 2 (Graph Neural Network) of
 | [conformal_prediction.md](conformal_prediction.md) | APS conformal prediction journey and ConfTS breakthrough |
 | [datasets.md](datasets.md) | Dataset sources, schemas, loading issues, and fixes |
 | [framework_integration.md](framework_integration.md) | How GNN fits into the 4-stage cascade and what files need updating |
-| [report.md](report.md) | Report-ready metrics, improvements, and talking points for publication |
+| [report.md](report.md) | Report-ready metrics, improvements, talking points, and figure guide for publication |
+| [figures/](figures/) | 16 training plots (EDA, training curves, evaluation, conformal, ConfTS) across V3-V5 |
 
 ## Quick Context
 

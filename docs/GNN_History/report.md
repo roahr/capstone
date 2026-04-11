@@ -156,7 +156,74 @@ The differentiator is not raw F1 (which is competitive but not SOTA) — it's th
 
 ---
 
-## 9. Key Numbers to Cite
+## 9. Figures for the Report
+
+All training plots are in `docs/GNN_History/figures/`. Key figures for the paper:
+
+### Figure: Training Progression (V3 → V4 → V5)
+| Version | Training Curves | What It Shows |
+|---------|:--------------:|---------------|
+| V3 | ![V3](figures/v3_training_curves.png) | 3K samples, overfit by epoch 20, val F1=0.665 |
+| V4 | ![V4](figures/v4_training_curves.png) | 21K samples, clean convergence, val F1=0.762 |
+| V5 | ![V5](figures/v5_training_curves.png) | No label smoothing, longer training (61ep), val F1=0.762 |
+
+**Use in paper**: Side-by-side comparison shows how data scaling (V3→V4) produced the largest improvement, while removing label smoothing (V4→V5) enabled sharper logit separation for conformal prediction.
+
+### Figure: Evaluation (ROC, Confusion Matrix, Score Distribution)
+| Version | Evaluation Plots | What It Shows |
+|---------|:---------------:|---------------|
+| V3 | ![V3](figures/v3_evaluation_plots.png) | AUC=0.623, degenerate predictions |
+| V4 | ![V4](figures/v4_evaluation_plots.png) | AUC=0.826, strong ROC curve, scores clustered at 0.55 |
+| V5 | ![V5](figures/v5_evaluation_plots.png) | AUC=0.781, bimodal score distribution (clear separation) |
+
+**Use in paper**: V4 evaluation shows the best AUC (0.826) but compressed P(vuln) distribution (right panel). V5 shows bimodal separation — safe samples near 0.0, vulnerable near 1.0 — which enables conformal routing.
+
+### Figure: Conformal Prediction Evolution
+| Version | Conformal Diagnostics | What It Shows |
+|---------|:--------------------:|---------------|
+| V3 | ![V3](figures/v3_conformal_diagnostics.png) | APS scores near 1.0, 0% singletons |
+| V4 | ![V4](figures/v4_conformal_diagnostics.png) | Same failure — spike at 1.0, threshold=1.0 |
+| V5 | ![V5](figures/v5_conformal_diagnostics.png) | Singletons appear (green bar), coverage ~86% |
+
+**Use in paper**: This sequence demonstrates the iterative refinement — from degenerate conformal prediction (V3-V4) to functional routing (V5). The APS score histogram shift from unimodal-at-1.0 to bimodal is the visual proof.
+
+### Figure: ConfTS Temperature Search (V5 only)
+![ConfTS](figures/v5_confts_temperature.png)
+
+**Use in paper**: Shows the temperature-set size tradeoff. Left panel: mean set size decreases monotonically with lower T. Right panel: singleton rate vs coverage — the operating point balances routing efficiency against coverage guarantee.
+
+### Figure: Dataset EDA
+| Version | EDA Overview | What It Shows |
+|---------|:----------:|---------------|
+| V3 | ![V3](figures/v3_eda_overview.png) | 3K samples, C/C++ only, limited CWEs |
+| V4 | ![V4](figures/v4_eda_overview.png) | 21K samples, C/C++ dominant, 10+ CWE types |
+| V5 | ![V5](figures/v5_eda_overview.png) | 21K samples, Python added via VUDENC/CVEfixes |
+
+**Use in paper**: Per-language balance bars (left panel) show strict 1:1 vuln:safe ratio. CWE distribution (middle panel) shows CWE-119, CWE-20, CWE-125 as top categories. Code length histogram (right panel) shows most functions are 10-100 lines.
+
+### Figure: Decision Threshold Calibration
+| Version | Threshold Plot | What It Shows |
+|---------|:-------------:|---------------|
+| V4 | ![V4](figures/v4_threshold_calibration.png) | F1 plateau at T=0.53, P(vuln) clustered at 0.55 |
+| V5 | ![V5](figures/v5_threshold_calibration.png) | F1 peak at T=0.32, bimodal P(vuln) — clear class separation |
+
+**Use in paper**: The shift from V4 (clustered) to V5 (bimodal) P(vuln) distributions is direct evidence that removing label smoothing produces the decisive logit separation needed for conformal prediction.
+
+### Complete Figure Inventory
+```
+docs/GNN_History/figures/
+  v3_eda_overview.png              v4_eda_overview.png              v5_eda_overview.png
+  v3_training_curves.png           v4_training_curves.png           v5_training_curves.png
+  v3_evaluation_plots.png          v4_evaluation_plots.png          v5_evaluation_plots.png
+  v3_threshold_calibration.png     v4_threshold_calibration.png     v5_threshold_calibration.png
+  v3_conformal_diagnostics.png     v4_conformal_diagnostics.png     v5_conformal_diagnostics.png
+                                                                    v5_confts_temperature.png
+```
+16 figures total: 5 per version (V3/V4/V5) + 1 ConfTS (V5 only).
+
+---
+
+## 10. Key Numbers to Cite
 
 For quick reference in paper writing:
 

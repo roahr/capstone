@@ -41,6 +41,17 @@
 
 ## V3: GIN Architecture Shift
 
+### V3 Figures
+| Dataset EDA | Training Curves | Evaluation |
+|:-----------:|:---------------:|:----------:|
+| ![V3 EDA](figures/v3_eda_overview.png) | ![V3 Training](figures/v3_training_curves.png) | ![V3 Eval](figures/v3_evaluation_plots.png) |
+| **3,032 samples, C/C++ dominant** | **Best epoch 20/45, val F1=0.665** | **F1=0.653, AUC=0.623** |
+
+| Threshold Calibration | Conformal Diagnostics |
+|:---------------------:|:---------------------:|
+| ![V3 Threshold](figures/v3_threshold_calibration.png) | ![V3 Conformal](figures/v3_conformal_diagnostics.png) |
+| **Optimal threshold search** | **Singleton=0.22%, threshold=0.41** |
+
 **Key Changes from V2**:
 - Architecture: GAT(2L, 298K) -> GIN(3L, 2.4M) with residual + BatchNorm
 - Pooling: global_mean -> mean+add dual pooling (768-dim graph embedding)
@@ -67,6 +78,19 @@
 ---
 
 ## V4: Dataset Expansion Breakthrough
+
+### V4 Figures
+| Dataset EDA | Training Curves | Evaluation |
+|:-----------:|:---------------:|:----------:|
+| ![V4 EDA](figures/v4_eda_overview.png) | ![V4 Training](figures/v4_training_curves.png) | ![V4 Eval](figures/v4_evaluation_plots.png) |
+| **20,928 samples (7x V3), 1:1 balanced** | **Best epoch 21/41, val F1=0.762** | **F1=0.781, AUC=0.826** |
+
+| Threshold Calibration | Conformal Diagnostics |
+|:---------------------:|:---------------------:|
+| ![V4 Threshold](figures/v4_threshold_calibration.png) | ![V4 Conformal](figures/v4_conformal_diagnostics.png) |
+| **Optimal T=0.53 (bimodal distribution)** | **Singleton=0%, threshold=1.0 (broken)** |
+
+**Key insight from plots**: The P(vuln) distribution (threshold plot, right panel) shows both classes clustered around 0.55 — label smoothing compresses logit gaps. The conformal APS score histogram (left panel) has a massive spike at 1.0, confirming the threshold collapse.
 
 **Key Changes from V3**:
 - `max_per_language`: 3,000 -> 20,000 (the single most impactful fix)
@@ -102,6 +126,19 @@
 ---
 
 ## V5 (V4-Improved): ConfTS Breakthrough
+
+### V5 Figures
+| Dataset EDA | Training Curves | Evaluation |
+|:-----------:|:---------------:|:----------:|
+| ![V5 EDA](figures/v5_eda_overview.png) | ![V5 Training](figures/v5_training_curves.png) | ![V5 Eval](figures/v5_evaluation_plots.png) |
+| **21,150 samples, VUDENC+CVEfixes added** | **Best epoch 41/61, val F1=0.762** | **F1=0.750, AUC=0.781** |
+
+| Threshold Calibration | Conformal Diagnostics | ConfTS Temperature Search |
+|:---------------------:|:---------------------:|:-------------------------:|
+| ![V5 Threshold](figures/v5_threshold_calibration.png) | ![V5 Conformal](figures/v5_conformal_diagnostics.png) | ![V5 ConfTS](figures/v5_confts_temperature.png) |
+| **T=0.32, bimodal P(vuln) — logits now sharp** | **Singletons visible (green bar)** | **T vs set size and singleton rate** |
+
+**Key insight from plots**: Compare V4 and V5 threshold calibration plots — V4 has classes clustered at 0.55 (label smoothing), V5 has clear bimodal separation (safe near 0.0, vuln near 1.0). Removing label smoothing allowed the model to produce decisive predictions. The ConfTS temperature plot shows the tradeoff: lower T → smaller sets but lower coverage.
 
 **Key Changes from V4**:
 - `label_smoothing`: 0.1 -> 0.0 (allow wider logit gaps, sharper softmax)
