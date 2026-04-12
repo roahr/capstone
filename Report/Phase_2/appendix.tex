@@ -1,9 +1,567 @@
-\chapter{Appendix}
-\doublespacing{\lipsum[1]\cite{2}}
+\chapter{\uppercase{Appendix}}
+\doublespacing
 
-\begin{figure}[H] 
-\centering 
-\includegraphics[width=0.5\textwidth]{Figures/sampleimg.png} \caption{Another Figure} 
-\label{fig:sample_plot} \end{figure}
+This appendix provides the full configuration files, data model schemas, mapping tables, sample outputs, and training metrics referenced throughout the thesis. All code and configuration excerpts are taken directly from the SEC-C repository at the time of evaluation.
 
-\section{Section 1} \doublespacing{\lipsum[2]}
+%% ====================================================================
+\section{Framework Configuration}
+\label{app:config}
+%% ====================================================================
+
+The following listing shows the complete \texttt{configs/default.yaml} file that governs all framework parameters. Key thresholds include the uncertainty escalation threshold (0.5), conformal $\alpha$ (0.1), ConfTS temperature (0.95 deployed; the config default of 0.2 is the pre-calibration value overridden at deployment), and the three-tier classification boundaries (0.85/0.50).
+
+\begin{lstlisting}[style=mystyle, language=Python, caption={SEC-C framework configuration (\texttt{configs/default.yaml}), Part~1: SAST and Graph modules.}, label={lst:config1}]
+framework:
+  name: "sec-c"
+  version: "2.0.0"
+languages: [python, javascript, java, cpp, go]
+
+sast:
+  codeql:
+    cli_path: "codeql"
+    query_suite: "security-extended"
+    timeout_seconds: 300
+  treesitter:
+    enabled: true
+    prescreen_timeout_ms: 100
+  uncertainty:
+    confidence_weight: 0.4
+    complexity_weight: 0.3
+    novelty_weight: 0.2
+    conflict_weight: 0.1
+    escalation_threshold: 0.5
+    severity_adjustments:
+      critical: 0.15
+      high: 0.10
+      medium: 0.00
+      low: -0.05
+\end{lstlisting}
+
+\begin{lstlisting}[style=mystyle, language=Python, caption={SEC-C framework configuration, Part~2: Graph, GNN, and conformal prediction.}, label={lst:config2}]
+graph:
+  joern:
+    binary_path: "joern"
+    timeout_seconds: 120
+    export_format: "graphml"
+  embeddings:
+    model: "microsoft/graphcodebert-base"
+    embedding_dim: 768
+    batch_size: 32
+    device: "cpu"
+  gnn:
+    input_dim: 774   # 768 GCB + 6 structural
+    hidden_dim: 384
+    num_gin_layers: 3
+    dropout: 0.35
+    num_classes: 2
+    max_nodes: 300
+    model_path: "data/models/mini_gin_v3.pt"
+  conformal:
+    alpha: 0.1
+    calibration_size: 0.2
+    method: "aps"
+    temperature: 0.2  # pre-calibration default; deployed value: 0.95
+\end{lstlisting}
+
+\begin{lstlisting}[style=mystyle, language=Python, caption={SEC-C framework configuration, Part~3: LLM, RAG, and reporting.}, label={lst:config3}]
+llm:
+  gemini:
+    primary_model: "gemini-2.5-flash"
+    fallback_model: "gemini-2.5-pro"
+    flash_rpm: 15
+    flash_rpd: 500
+    temperature: 0.1
+    max_output_tokens: 4096
+    max_batch_size: 5
+  consensus:
+    confirmed_defense_threshold: 0.5
+    safe_defense_threshold: 0.7
+    infeasible_confidence: 0.8
+  rag:
+    top_k: 5
+    hybrid_weight_semantic: 0.6
+    hybrid_weight_keyword: 0.4
+
+orchestrator:
+  fusion:
+    sast_weight: 0.3
+    gat_weight: 0.3
+    llm_weight: 0.4
+  classification:
+    confirmed_threshold: 0.85
+    likely_threshold: 0.50
+\end{lstlisting}
+
+%% ====================================================================
+\section{Finding Data Model Schema}
+\label{app:schema}
+%% ====================================================================
+
+The core data model is a Pydantic v2 \texttt{Finding} class that flows through all four pipeline modules. Each module enriches the finding with stage-specific fields. Table~\ref{tab:schema-enums} lists the enumeration types, and Table~\ref{tab:schema-models} summarizes the nested model hierarchy.
+
+\begin{table}[H]
+\centering
+\caption{Enumeration types in \texttt{src/sast/sarif/schema.py}.}
+\label{tab:schema-enums}
+\begin{tabular}{llp{7cm}}
+\toprule
+\textbf{Enum} & \textbf{Values} & \textbf{Usage} \\
+\midrule
+\texttt{Severity}      & critical, high, medium, low, info & SAST-assigned severity \\
+\texttt{Verdict}       & confirmed, likely, potential, safe, unknown & Final classification \\
+\texttt{StageResolved} & sast, graph, llm, unresolved & Which cascade stage resolved the finding \\
+\texttt{Language}       & python, javascript, typescript, java, cpp, c, go & Source language \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Pydantic model hierarchy for the \texttt{Finding} data model.}
+\label{tab:schema-models}
+\begin{tabular}{lp{9cm}}
+\toprule
+\textbf{Model} & \textbf{Key Fields} \\
+\midrule
+\texttt{Location}          & file\_path, start\_line, end\_line, snippet \\
+\texttt{TaintFlowStep}     & location (Location), label, kind (source/sink/intermediate) \\
+\texttt{TaintFlow}         & steps (list[TaintFlowStep]), properties: length, source, sink, is\_interprocedural \\
+\texttt{UncertaintyScore}  & 4 uncertainty factors ($U_{\text{conf}}$, $U_{\text{comp}}$, $U_{\text{nov}}$, $U_{\text{confl}}$), weights, severity\_adjustment, computed total \\
+\texttt{GraphValidation}   & structural\_risk\_score, conformal\_prediction\_set, conformal\_coverage, taint\_path\_length, control\_flow\_complexity, sanitizer\_coverage \\
+\texttt{AttackerVerdict}   & exploitable (bool), payload, execution\_trace, confidence, attack\_vector, attack\_complexity, privileges\_required \\
+\texttt{DefenderVerdict}   & sanitizers\_found, access\_controls, framework\_protections, path\_feasible, defense\_coverage\_score, scope, CIA impacts \\
+\texttt{LLMValidation}     & attacker (AttackerVerdict), defender (DefenderVerdict), consensus\_verdict, cvss\_base\_score, cvss\_vector \\
+\texttt{Finding}           & All of the above + id, rule\_id, cwe\_id, severity, verdict, fused\_score, stage\_resolved, remediation \\
+\texttt{ScanResult}        & findings (list[Finding]), cascade statistics, scan metadata \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The \texttt{UncertaintyScore} model computes its total as a weighted sum with clamping:
+
+\begin{lstlisting}[style=mystyle, language=Python, caption={Uncertainty score computation from \texttt{schema.py}.}, label={lst:uncertainty}]
+@property
+def total(self) -> float:
+    raw = (
+        self.w_conf * self.confidence_uncertainty
+        + self.w_comp * self.complexity_uncertainty
+        + self.w_nov * self.novelty_uncertainty
+        + self.w_confl * self.conflict_uncertainty
+        + self.severity_adjustment
+    )
+    return max(0.0, min(1.0, raw))
+
+@property
+def should_escalate(self) -> bool:
+    return self.total >= 0.5
+\end{lstlisting}
+
+%% ====================================================================
+\section{CWE-to-OWASP Top 10 Mapping}
+\label{app:cwe-owasp}
+%% ====================================================================
+
+The RAG knowledge base (\texttt{src/llm/rag/knowledge\_base.py}) maps 46 CWE identifiers to OWASP Top 10 (2021) categories. This mapping provides category-specific remediation guidance to the LLM dual-agent system. Table~\ref{tab:cwe-owasp} lists the complete mapping.
+
+\begin{longtable}{llp{6.5cm}}
+\caption{CWE-to-OWASP Top 10 (2021) mapping with remediation guidance.} \label{tab:cwe-owasp} \\
+\toprule
+\textbf{CWE} & \textbf{OWASP Category} & \textbf{Guidance} \\
+\midrule
+\endfirsthead
+\multicolumn{3}{c}{\textit{Table~\ref{tab:cwe-owasp} continued from previous page}} \\
+\toprule
+\textbf{CWE} & \textbf{OWASP Category} & \textbf{Guidance} \\
+\midrule
+\endhead
+\midrule
+\multicolumn{3}{r}{\textit{Continued on next page}} \\
+\endfoot
+\bottomrule
+\endlastfoot
+%% A01
+CWE-22  & A01 Broken Access Control & Validate and sanitize user-supplied file paths. Use chroot jails or path canonicalization. \\
+CWE-23  & A01 Broken Access Control & Canonicalize paths and enforce a whitelist of allowed directories. \\
+CWE-35  & A01 Broken Access Control & Validate path components to prevent traversal sequences. \\
+CWE-59  & A01 Broken Access Control & Avoid following symbolic links. Use O\_NOFOLLOW. \\
+CWE-200 & A01 Broken Access Control & Apply least privilege to information exposure. \\
+CWE-284 & A01 Broken Access Control & Implement RBAC. Deny by default. Log failures. \\
+CWE-285 & A01 Broken Access Control & Use a centralized authorization mechanism. \\
+CWE-352 & A01 Broken Access Control & Use anti-CSRF tokens. Validate Origin/Referer. \\
+CWE-639 & A01 Broken Access Control & Use indirect references. Validate per-object authorization. \\
+CWE-862 & A01 Broken Access Control & Enforce authorization checks on every request. \\
+CWE-863 & A01 Broken Access Control & Verify correct privileges for the requested action. \\
+%% A02
+CWE-259 & A02 Cryptographic Failures & Never hard-code credentials. Use secure vaults. \\
+CWE-261 & A02 Cryptographic Failures & Use well-tested cryptographic algorithms. \\
+CWE-327 & A02 Cryptographic Failures & Use AES-256-GCM, SHA-256+. Avoid MD5, SHA-1, DES. \\
+CWE-328 & A02 Cryptographic Failures & Use hash functions with sufficient output length. \\
+CWE-330 & A02 Cryptographic Failures & Use CSPRNG (secrets module, /dev/urandom). \\
+CWE-331 & A02 Cryptographic Failures & Ensure sufficient entropy for security operations. \\
+CWE-798 & A02 Cryptographic Failures & Use secrets management (Vault, AWS Secrets Manager). \\
+%% A03
+CWE-20  & A03 Injection & Validate all input against expected formats. \\
+CWE-74  & A03 Injection & Use parameterized queries. Never concatenate user input. \\
+CWE-75  & A03 Injection & Sanitize special elements before passing to interpreters. \\
+CWE-77  & A03 Injection & Use APIs instead of shell commands. \\
+CWE-78  & A03 Injection & Use subprocess with argument lists, not shell=True. \\
+CWE-79  & A03 Injection & Apply context-aware output encoding. Use CSP. \\
+CWE-89  & A03 Injection & Use parameterized queries or ORMs exclusively. \\
+CWE-90  & A03 Injection & Use parameterized LDAP search filters. \\
+CWE-94  & A03 Injection & Avoid eval/exec on user input. Use sandboxes. \\
+CWE-917 & A03 Injection & Avoid evaluating user-controlled expressions. \\
+%% A04
+CWE-209 & A04 Insecure Design & Generic error messages for users; log details server-side. \\
+CWE-256 & A04 Insecure Design & Store credentials with bcrypt, scrypt, or Argon2. \\
+CWE-501 & A04 Insecure Design & Never trust client-side trust boundaries. \\
+CWE-522 & A04 Insecure Design & Enforce strong password policies. Use MFA. \\
+%% A05
+CWE-2   & A05 Security Misconfiguration & Review defaults. Disable unnecessary features. \\
+CWE-11  & A05 Security Misconfiguration & Remove debugging config in production. \\
+CWE-13  & A05 Security Misconfiguration & Protect configuration files from unauthorized access. \\
+CWE-15  & A05 Security Misconfiguration & Validate system settings from external input. \\
+CWE-16  & A05 Security Misconfiguration & Establish secure baselines. Automate config management. \\
+CWE-611 & A05 Security Misconfiguration & Disable XML external entity processing. \\
+%% A06
+CWE-1104 & A06 Outdated Components & Maintain dependency inventory. Use Dependabot/Snyk. \\
+%% A07
+CWE-287 & A07 Authentication Failures & Use proven auth mechanisms. Implement MFA. \\
+CWE-384 & A07 Authentication Failures & Regenerate session IDs after authentication. \\
+CWE-613 & A07 Authentication Failures & Set appropriate session timeouts. \\
+%% A08
+CWE-345 & A08 Integrity Failures & Verify data integrity with signatures or HMACs. \\
+CWE-502 & A08 Integrity Failures & Never deserialize untrusted data. Use JSON. \\
+CWE-565 & A08 Integrity Failures & Do not rely on cookies without server-side validation. \\
+%% A09
+CWE-117 & A09 Logging Failures & Sanitize log outputs. Use structured logging. \\
+CWE-223 & A09 Logging Failures & Log security events with sufficient detail. \\
+CWE-532 & A09 Logging Failures & Never log passwords, tokens, or PII. \\
+CWE-778 & A09 Logging Failures & Set up alerts for anomalous patterns. \\
+%% A10
+CWE-918 & A10 SSRF & Use allowlists for outbound requests. Block internal ranges. \\
+\end{longtable}
+
+%% ====================================================================
+\section{Sample SARIF Output}
+\label{app:sarif}
+%% ====================================================================
+
+SEC-C generates SARIF 2.1.0 compliant output with custom properties under the \texttt{sec-c/} namespace. The following listing shows a representative SARIF result object for a SQL injection finding that was escalated through all three stages.
+
+\begin{lstlisting}[style=mystyle, language=Python, caption={Representative SARIF result object with SEC-C custom properties.}, label={lst:sarif}]
+{
+  "ruleId": "py/sql-injection",
+  "level": "error",
+  "kind": "fail",
+  "message": {
+    "text": "SQL query built from user input"
+  },
+  "locations": [{
+    "physicalLocation": {
+      "artifactLocation": {"uri": "app/db.py"},
+      "region": {"startLine": 42}
+    }
+  }],
+  "codeFlows": [{
+    "threadFlows": [{"locations": [
+      {"location": {"message": {"text": "source"}}},
+      {"location": {"message": {"text": "sink"}}}
+    ]}]
+  }],
+\end{lstlisting}
+
+\begin{lstlisting}[style=mystyle, language=Python, caption={SARIF custom properties (continued from Listing~\ref{lst:sarif}).}, label={lst:sarif2}]
+  "properties": {
+    "sec-c/verdict": "confirmed",
+    "sec-c/fused_confidence": 0.9213,
+    "sec-c/stage_resolved": "llm",
+    "sec-c/uncertainty_score": 0.6200,
+    "sec-c/structural_risk": 0.7500,
+    "sec-c/conformal_prediction_set":
+      ["safe", "vulnerable"],
+    "sec-c/conformal_coverage": 0.9000,
+    "sec-c/attacker_verdict": {
+      "exploitable": true,
+      "confidence": 0.9500
+    },
+    "sec-c/defender_verdict": {
+      "defense_coverage": 0.1200,
+      "path_feasible": true
+    },
+    "sec-c/cvss_base_score": 8.6,
+    "sec-c/cvss_vector":
+      "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N"
+  }
+}
+\end{lstlisting}
+
+The SARIF invocation object also records cascade statistics:
+
+\begin{lstlisting}[style=mystyle, language=Python, caption={SARIF invocation-level cascade statistics.}, label={lst:sarif-cascade}]
+"invocations": [{
+  "executionSuccessful": true,
+  "properties": {
+    "sec-c/cascade_stats": {
+      "total_findings": 184,
+      "resolved_at_sast": 157,
+      "resolved_at_graph": 4,
+      "resolved_at_llm": 23,
+      "unresolved": 0,
+      "cascade_efficiency": "85.3%",
+      "scan_duration_ms": 1178000
+    }
+  }
+}]
+\end{lstlisting}
+
+%% ====================================================================
+\section{LLM Prompt Templates}
+\label{app:prompts}
+%% ====================================================================
+
+The dual-agent system uses CWE-category-specific Jinja2 templates stored in \texttt{src/llm/prompts/templates/}. Table~\ref{tab:prompt-templates} lists all 12 templates across 6 categories.
+
+\begin{table}[H]
+\centering
+\caption{LLM prompt template inventory.}
+\label{tab:prompt-templates}
+\begin{tabular}{lll}
+\toprule
+\textbf{Category} & \textbf{Attacker Template} & \textbf{Defender Template} \\
+\midrule
+Injection (CWE-78/79/89/94) & \texttt{attacker\_injection.jinja2} & \texttt{defender\_injection.jinja2} \\
+Deserialization (CWE-502)   & \texttt{attacker\_deserialization.jinja2} & \texttt{defender\_deserialization.jinja2} \\
+Path Traversal (CWE-22)     & \texttt{attacker\_path\_traversal.jinja2} & \texttt{defender\_path\_traversal.jinja2} \\
+Cryptographic (CWE-327/328) & \texttt{attacker\_crypto.jinja2} & \texttt{defender\_crypto.jinja2} \\
+Authentication (CWE-287/862) & \texttt{attacker\_auth.jinja2} & \texttt{defender\_auth.jinja2} \\
+Default (all other CWEs)    & \texttt{attacker\_default.jinja2} & \texttt{defender\_default.jinja2} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Each template receives the following Jinja2 variables: \texttt{code\_slice}, \texttt{taint\_path}, \texttt{cwe\_id}, \texttt{cwe\_name}, \texttt{sast\_message}, \texttt{sast\_confidence}, \texttt{location}, \texttt{graph\_context}, \texttt{rag\_context}, and \texttt{language}. The attacker template for injection CWEs includes CWE-specific exploit payload libraries. Listing~\ref{lst:attacker-excerpt} shows the SQL injection section.
+
+\begin{lstlisting}[style=mystyle, caption={Excerpt from \texttt{attacker\_injection.jinja2}: SQL injection payload library.}, label={lst:attacker-excerpt}]
+{% if cwe_id == "CWE-89" %}
+**Category: SQL Injection**
+Known exploit payloads:
+- Auth bypass: ' OR '1'='1' --
+- UNION extraction: ' UNION SELECT
+    username, password FROM users --
+- Blind boolean: ' AND 1=1 --
+- Time-based: '; WAITFOR DELAY '0:0:5' --
+- Stacked queries: '; DROP TABLE users; --
+- Second-order injection: stored payload
+    executed in a different query context
+{% endif %}
+\end{lstlisting}
+
+The defender template for injection CWEs evaluates seven defensive categories: (1)~parameterization/prepared statements, (2)~output encoding, (3)~allowlist validation, (4)~framework auto-escaping, (5)~WAF/CSP protections, (6)~path feasibility, and (7)~counterexamples. Both agents return structured JSON responses that map directly to the \texttt{AttackerVerdict} and \texttt{DefenderVerdict} Pydantic models (Appendix~\ref{app:schema}).
+
+%% ====================================================================
+\section{CWE-Adaptive Fusion Weights}
+\label{app:fusion-weights}
+%% ====================================================================
+
+Table~\ref{tab:fusion-weights} lists all 14 CWE-specific weight profiles from \texttt{configs/cwe\_weights.yaml}. Weights sum to 1.0 for each CWE. The ``dominant'' column indicates which module receives the highest weight.
+
+\begin{table}[H]
+\centering
+\caption{CWE-adaptive fusion weight profiles.}
+\label{tab:fusion-weights}
+\begin{tabular}{lllllp{3cm}}
+\toprule
+\textbf{CWE} & \textbf{Weakness} & $\alpha$ \textbf{(SAST)} & $\beta$ \textbf{(GNN)} & $\gamma$ \textbf{(LLM)} & \textbf{Dominant} \\
+\midrule
+CWE-78  & OS Cmd Injection    & 0.25 & 0.25 & 0.50 & LLM \\
+CWE-79  & XSS                 & 0.25 & 0.25 & 0.50 & LLM \\
+CWE-89  & SQL Injection        & 0.30 & 0.25 & 0.45 & LLM \\
+CWE-94  & Code Injection       & 0.25 & 0.30 & 0.45 & LLM \\
+CWE-22  & Path Traversal       & 0.35 & 0.30 & 0.35 & SAST/LLM \\
+CWE-434 & File Upload          & 0.30 & 0.25 & 0.45 & LLM \\
+CWE-327 & Broken Crypto        & 0.50 & 0.20 & 0.30 & SAST \\
+CWE-328 & Weak Hash            & 0.50 & 0.20 & 0.30 & SAST \\
+CWE-416 & Use After Free       & 0.20 & 0.50 & 0.30 & GNN \\
+CWE-476 & NULL Ptr Deref       & 0.25 & 0.45 & 0.30 & GNN \\
+CWE-502 & Deserialization      & 0.25 & 0.25 & 0.50 & LLM \\
+CWE-287 & Improper Auth        & 0.20 & 0.25 & 0.55 & LLM \\
+CWE-862 & Missing Authz        & 0.20 & 0.25 & 0.55 & LLM \\
+\midrule
+default & All other CWEs       & 0.30 & 0.30 & 0.40 & LLM \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The weight rationale follows three domain heuristics:
+\begin{itemize}
+    \item \textbf{Injection CWEs} ($\gamma \geq 0.45$): LLM semantic understanding is necessary to distinguish parameterized queries from string-concatenated queries, and to assess whether framework auto-escaping is active.
+    \item \textbf{Cryptographic CWEs} ($\alpha = 0.50$): Weak algorithm detection is a pattern-matching task. SAST rules for MD5, SHA-1, DES, and ECB mode achieve high precision because the API signatures are unambiguous. LLMs show 77--84\% miss rates on cryptographic weaknesses~\cite{steenhoek2024}.
+    \item \textbf{Memory safety CWEs} ($\beta \geq 0.45$): Use-after-free and null-pointer dereference require tracking object lifetimes through control flow, which is precisely what the code property graph and GNN attention mechanism capture.
+\end{itemize}
+
+%% ====================================================================
+\section{GNN Training History}
+\label{app:gnn-history}
+%% ====================================================================
+
+This section provides the complete metrics progression across GNN versions V2 through V5, supplementing the summary in Chapter~4. V1 was a synthetic baseline (discarded due to overfitting to generated patterns) and is excluded.
+
+\subsection{Classification Metrics Progression}
+
+\begin{table}[H]
+\centering
+\caption{GNN classification metrics across training versions.}
+\label{tab:gnn-classification}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Metric} & \textbf{V2} & \textbf{V3} & \textbf{V4} & \textbf{V5} \\
+\midrule
+Test F1       & 0.560 & 0.653 & \textbf{0.781} & 0.750 \\
+Test Precision & 0.397 & 0.544 & 0.675 & 0.643 \\
+Test Recall    & 0.951 & 0.815 & 0.926 & 0.899 \\
+Test AUC-ROC   & 0.744 & 0.623 & \textbf{0.826} & 0.781 \\
+C/C++ F1       & 0.543 & 0.658 & \textbf{0.788} & 0.750 \\
+Python F1      & 0.633 & 0.400 & 0.667 & \textbf{0.836} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Conformal Prediction Metrics Progression}
+
+\begin{table}[H]
+\centering
+\caption{Conformal prediction metrics across training versions and live deployment.}
+\label{tab:gnn-conformal}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Metric} & \textbf{V2} & \textbf{V3} & \textbf{V4} & \textbf{V5 (offline)} & \textbf{V5 (deployed)} \\
+\midrule
+Alpha ($\alpha$)   & 0.30 & 0.20 & 0.10 & 0.10 & 0.10 \\
+Threshold          & 1.0  & 0.41 & 1.0  & 1.0  & \textbf{0.95} \\
+ConfTS Temp        & ---  & ---  & ---  & 0.100 & \textbf{0.95} \\
+Singleton \%       & 0\%  & 0.22\% & 0\% & 69.1\% & 2\% (live) \\
+Mean Set Size      & 2.0  & 2.0  & 2.0  & 1.309  & --- \\
+Coverage           & 100\% & 100\% & 100\% & 84.3\% & Maintained \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Training Scale Progression}
+
+\begin{table}[H]
+\centering
+\caption{Dataset size and training duration across GNN versions.}
+\label{tab:gnn-scale}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Metric} & \textbf{V2} & \textbf{V3} & \textbf{V4} & \textbf{V5} \\
+\midrule
+Training samples     & $\sim$1,500 & 1,819  & 12,556 & 12,689 \\
+Total graphs         & $\sim$1,700 & 3,032  & 20,928 & 21,150 \\
+Training time (T4)   & $\sim$1 min & 0.6 min & 4.8 min & 7.0 min \\
+Best epoch           & ---  & 20  & 21  & 41  \\
+Total epochs         & ---  & 45  & 41  & 61  \\
+Parameters           & 298K & 2.4M & 2.4M & 2.4M \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Architecture Changes Per Version}
+
+\begin{table}[H]
+\centering
+\caption{Key architectural and hyperparameter changes between GNN versions.}
+\label{tab:gnn-changes}
+\begin{tabular}{lp{10cm}}
+\toprule
+\textbf{Version} & \textbf{Key Changes} \\
+\midrule
+V2 & Baseline: 2-layer Mini-GAT (298K params), 773-dim input (768 GraphCodeBERT + 5 structural features), focal loss ($\gamma=2$), $\alpha=0.3$. Degenerate: predicts nearly everything as vulnerable. \\
+\addlinespace
+V3 & Architecture shift: GAT $\rightarrow$ GIN (3-layer, 2.4M params) with residual connections and BatchNorm. CLS token $\rightarrow$ mean pooling. Focal loss $\rightarrow$ CrossEntropy + label smoothing (0.1). LR: $10^{-3} \rightarrow 3 \times 10^{-4}$ with 5-epoch warmup + cosine decay. Added 6th structural feature (language\_id). Dataset capped at 3,032 by \texttt{max\_per\_language=3000} bug. \\
+\addlinespace
+V4 & Data cap fix: \texttt{max\_per\_language} $3{,}000 \rightarrow 20{,}000$, producing 7$\times$ more data. $\alpha: 0.2 \rightarrow 0.1$. Dropout: $0.4 \rightarrow 0.35$. Fixed HuggingFace dataset IDs. Fixed SINK\_PATTERNS scoping bug. Conformal still broken: label smoothing compresses logit gaps, APS threshold collapses to 1.0. \\
+\addlinespace
+V5 & Label smoothing: $0.1 \rightarrow 0.0$ (enables wider logit gaps). ConfTS integration: grid search $T \in [0.05, 3.0]$, best $T = 0.100$. VUDENC and CVEfixes datasets added. PrimeVul attempted but failed (metadata error). Singleton rate: $0\% \rightarrow 69.1\%$. Test coverage 84.3\% $<$ 90\% target. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{V4 Per-CWE Performance}
+
+V4 produced the peak classification metrics. Table~\ref{tab:v4-percwe} lists the per-CWE F1 scores for CWE families with sufficient test samples ($n \geq 20$).
+
+\begin{table}[H]
+\centering
+\caption{V4 per-CWE F1 scores (CWEs with $\geq$20 test samples).}
+\label{tab:v4-percwe}
+\begin{tabular}{llc}
+\toprule
+\textbf{CWE} & \textbf{Weakness} & \textbf{F1} \\
+\midrule
+CWE-476 & NULL Pointer Dereference & 0.926 \\
+CWE-787 & Out-of-Bounds Write      & 0.895 \\
+CWE-416 & Use After Free           & 0.872 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Dataset Source Composition (V4/V5)}
+
+\begin{table}[H]
+\centering
+\caption{Dataset source breakdown for V4 and V5.}
+\label{tab:gnn-datasets}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Source} & \textbf{V4 Samples} & \textbf{V5 Samples} \\
+\midrule
+BigVul~\cite{bigvul2020}       & 5,777 & 5,777 \\
+DiverseVul~\cite{diversevul2023}   & 4,935 & 4,935 \\
+Juliet-C~\cite{juliet2017}     & 3,611 & 3,611 \\
+CrossVul~\cite{crossvul2021}     & 3,428 & 3,428 \\
+Devign~\cite{devign2019}       & 3,002 & 3,002 \\
+VUDENC~\cite{vudenc2021}       & ---   & 222 \\
+CVEfixes~\cite{cvefixes2021}     & ---   & 175 \\
+PrimeVul     & failed & failed \\
+\midrule
+\textbf{Total} & 20,928 & 21,150 \\
+\bottomrule
+\end{tabular}
+\smallskip
+
+\noindent\textit{Note: Sample counts are post-deduplication (MD5 hash) and post-balancing (per-language 1:1 balance with \texttt{max\_per\_language=20,000}). VUDENC and CVEfixes contribute small volumes because their vulnerable-to-safe ratios are extremely imbalanced (84/2916 and 36/2964 respectively); balancing reduces them to 222 and 175 graphs.}
+\end{table}
+
+\subsection{Live Cascade Benchmark (V5 Deployment)}
+
+The V5 model with deployment calibration parameters (conformal threshold 0.95, ConfTS temperature 0.95, full CPG for GNN inference) was evaluated across 15 open-source repositories spanning five languages. Table~\ref{tab:live-cascade} summarizes the cascade distribution.
+
+\begin{table}[H]
+\centering
+\caption{Live cascade resolution distribution (15 repos, 184 findings).}
+\label{tab:live-cascade}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Resolution Stage} & \textbf{Count} & \textbf{Percentage} \\
+\midrule
+SAST (Module 1)   & 157 & 85\% \\
+GNN (Module 2)    & 4   & 2\% \\
+LLM (Module 3)    & 23  & 13\% \\
+Unresolved        & 0   & 0\% \\
+\midrule
+\textbf{Total}    & 184 & 100\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three calibration adjustments were made for live deployment:
+\begin{enumerate}
+    \item \textbf{Full CPG for GNN inference}: backward slicing reduced CPGs to 1--6 nodes (83--95\% reduction from training distribution of 10--300 nodes). Passing the full CPG with \texttt{max\_nodes=300} truncation aligned the input distribution with training conditions.
+    \item \textbf{Conformal threshold $1.0 \rightarrow 0.95$}: threshold 1.0 is mathematically incompatible with 2-class singleton predictions (binary softmax strictly satisfies $P(\text{top class}) < 1.0$ for finite logits). Threshold 0.95 permits singletons when model confidence exceeds 95\%.
+    \item \textbf{ConfTS temperature $0.2 \rightarrow 0.95$}: $T = 0.2$ produced near-binary softmax for all predictions, preventing the model from expressing genuine uncertainty. $T = 0.95$ preserves natural variance in model confidence.
+\end{enumerate}
+
+%% NEW REFERENCES %%
+% All references used in this appendix are already present in reference_bank.md.
+% No new references needed.

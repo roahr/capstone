@@ -1,36 +1,424 @@
-\chapter{\uppercase {Introduction}}
-\section{\uppercase {Background}}
-\subsection{Concept}
+% =============================================================================
+% Chapter 1: Introduction
+% SEC-C: Multi-Stage Code Security Framework for Adaptive Vulnerability
+%        Triage and Detection
+% =============================================================================
+
+\chapter{\uppercase{Introduction}}
 \pagenumbering{arabic}
-\setcounter{page}{1} 
-\doublespacing{Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.}
+\setcounter{page}{1}
 
-\subsection{{Motivation}}
-\doublespacing{Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.\cite{1}}
+\doublespacing
 
-Figure \textbf{\ref{fig:samplefig}} is a Sample Picture that can be saved in the `Figures` folder and included in the text here.
-\begin{figure}[!htp]
-    \includegraphics[scale=0.3]{Figures/sampleimg.PNG}
-    \centering\caption{Caption of the image}
-    \label{fig:samplefig}
+Software vulnerabilities cost the global economy an estimated \$2.4~trillion annually, yet the tools charged with finding them produce noise at industrial scale. In 2023 alone, the National Vulnerability Database catalogued over 25,000~new CVEs, a 15\% year-over-year increase~\cite{nvd2023}. The paradox is sharp: we have more detection tools than ever, and more unfixed vulnerabilities than ever. Static Application Security Testing (SAST) tools---the most widely deployed automated defenses---flag between 68\% and 95\% false positives depending on the tool and target language~\cite{ghostsecurity2025, siftingnoise2026}. Machine learning models trained to improve on SAST collapse from 93\% F1 on curated benchmarks to single-digit F1 on realistic data~\cite{realvul2024, primevul2024}. Large Language Models (LLMs) bring contextual understanding but hallucinate vulnerabilities at rates approaching 90\%~\cite{llm4vuln2024}. No single analysis modality is trustworthy in isolation.
+
+We present SEC-C, a multi-stage code security framework that treats vulnerability detection as a \textit{triage} problem rather than a classification problem. Instead of running every finding through every analysis stage, SEC-C routes each finding to the cheapest stage capable of resolving it. The framework comprises four stages arranged in a cascade of increasing cost and analytical depth:
+
+\begin{itemize}
+    \item \textbf{Stage~1 (SAST):} Tree-sitter pattern matching and CodeQL taint analysis, producing findings with 4-factor uncertainty scores. Cost: $<$100\,ms, free.
+    \item \textbf{Stage~2 (Graph):} Joern-based Code Property Graph construction, backward slicing, GraphCodeBERT embeddings, MiniGINv3 classification, and APS conformal prediction. Cost: 1--3\,s, free (local).
+    \item \textbf{Stage~3 (LLM):} Dual-agent adversarial analysis (attacker + defender) with RAG-augmented knowledge retrieval, consensus engine, and CVSS~v3.1 scoring. Cost: 5--15\,s, API fees.
+    \item \textbf{Stage~4 (Fusion):} CWE-adaptive weighted score combination, three-tier classification (CONFIRMED / LIKELY / POTENTIAL), and SARIF~2.1.0 report generation. Cost: $<$10\,ms.
+\end{itemize}
+
+A 4-factor uncertainty score governs escalation between stages: only findings where the current stage is measurably uncertain advance to a more expensive analysis. The cascade is designed so that the majority of findings resolve at the SAST stage, with progressively fewer escalating to graph-based validation and only the most ambiguous cases reaching the LLM dual-agent stage. In practice, evaluation on 15 open-source repositories shows that 85\% of findings resolve at Stage~1, 2\% at Stage~2, and 13\% at Stage~3, with zero findings left unresolved. For a scan producing 1,000~findings, only approximately 50 require LLM analysis, at a total cost of \$0.50--2.00---compared to \$10--40 for sending all 1,000 to an LLM. This 85--95\% cost reduction is the cascade's primary economic contribution, and it is achieved without sacrificing detection quality: every finding that needs deep analysis receives it, because the uncertainty score identifies which findings those are.
+
+The framing matters. Existing tools treat vulnerability detection as a \textit{classification} problem: given a code snippet, output ``vulnerable'' or ``safe.'' This framing ignores two critical dimensions. First, it ignores \textit{cost}: a classification that costs \$0.001 (pattern match) and a classification that costs \$0.40 (LLM call) produce the same binary output but differ by three orders of magnitude in resource consumption. Second, it ignores \textit{confidence}: a classifier that is 99\% certain and one that is 51\% certain both output the same label, but only the second needs additional analysis. Triage, by contrast, asks: ``Given what we know so far, do we know enough to act, or do we need to investigate further?'' SEC-C operationalizes this question at every stage of the cascade.
+
+This chapter establishes the problem space, states research objectives, motivates three technical innovations---uncertainty-driven escalation, conformal prediction for code security, and adversarial dual-agent consensus---maps five research questions to five contributions, and outlines the report structure.
+
+
+% =============================================================================
+\section{\uppercase{Background}}
+% =============================================================================
+
+% -----------------------------------------------------------------------------
+\subsection{The Software Vulnerability Crisis}
+% -----------------------------------------------------------------------------
+
+The volume of reported vulnerabilities has grown monotonically for over a decade. The NVD recorded 25,227~CVEs in 2023, up from 20,174 in 2021 and 12,174 in 2019~\cite{nvd2023}. This growth is not merely a consequence of better reporting; it reflects the expanding attack surface of modern software. Applications are assembled from hundreds of open-source dependencies, each of which is maintained by separate teams with varying security practices. A single vulnerability in a transitive dependency can propagate to thousands of downstream consumers, as demonstrated by Log4Shell (CVE-2021-44228), which affected an estimated 35,000~Java packages.
+
+The Edgescan 2025 Vulnerability Statistics Report found that 45.4\% of discovered vulnerabilities in large enterprises remain unresolved at 12~months, with 17.4\% of those being high or critical severity~\cite{edgescan2025}. The median time-to-remediation for critical web application vulnerabilities exceeds 60~days. These numbers indicate a systemic failure in vulnerability management: organizations discover more vulnerabilities than they can fix, and the backlog grows with each scan cycle. The tools are producing output; the humans are not acting on it.
+
+The first line of automated defense is SAST. These tools analyze source code without executing it, searching for patterns that match known vulnerability classes: SQL injection sinks reachable from user input, calls to deprecated cryptographic functions, hardcoded credentials, and similar. SAST is fast, deterministic, and integrates into CI/CD pipelines. It is also overwhelmingly noisy.
+
+Ghost Security's 2025 study scanned nearly 3,000~open-source repositories across Go, Python, and PHP and found that \textbf{over 91\% of all flagged issues were false positives}~\cite{ghostsecurity2025}. Of 2,116~flagged findings, only 180 were genuine vulnerabilities. Python/Flask command injection checks produced a 99.5\% false positive rate; Go/Gin SQL injection alerts were 80\% false; PHP/Laravel file upload checks were 90\% false. Table~\ref{tab:fp-rates} summarizes false positive rates measured on the OWASP Benchmark v1.2 (2,740~Java test cases with ground truth labels) by the ``Sifting the Noise'' study~\cite{siftingnoise2026}.
+
+\begin{table}[H]
+\centering
+\caption{False positive rates of major SAST tools on OWASP Benchmark v1.2~\cite{siftingnoise2026}.}
+\label{tab:fp-rates}
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Tool} & \textbf{FP Rate (\%)} & \textbf{Precision (\%)} & \textbf{F1 (\%)} \\
+\midrule
+CodeQL    & 68.2 & 60.3 & 74.4 \\
+Semgrep   & 74.8 & $<$60  & $<$74  \\
+SonarQube & 94.6 & lowest & lowest \\
+\midrule
+\textit{Industry average} & \textit{91.0} & --- & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The downstream consequence is alert fatigue. Johnson et al.~\cite{johnson2013} studied why developers avoid SAST tools and found that 40--60\% of warnings are dismissed without investigation. When the base rate of true positives is below 10\%, rational triage becomes impossible: a developer who ignores every alert is correct nine times out of ten. The vulnerability that slips through---the one that was real but buried under 200 false alarms---is the one that becomes a breach.
+
+The economics of manual review make the problem worse. Each SAST finding requires 10--20~minutes of expert review to determine exploitability, trace data flows, and verify sanitization. An organization producing 500~SAST findings per release cycle faces 80--160~hours of manual review, of which 90\% yields no actionable result. At a fully loaded cost of \$75--150/hour for a senior security engineer, each release cycle consumes \$6,000--24,000 in triage labor---most of it wasted on noise. Organizations that run weekly scans across 100+~repositories face annual triage costs exceeding \$1~million for a process that catches fewer than one in ten genuine vulnerabilities. The rational organizational response is to reduce scan frequency, raise severity thresholds, or abandon SAST entirely. Each of these responses increases the window of exposure.
+
+Figure~\ref{fig:iceberg} illustrates this problem. The visible portion---CVEs that are reported, triaged, and patched---represents a fraction of the actual attack surface. Beneath it sit the findings that were flagged but ignored due to alert fatigue, the vulnerabilities in code paths that SAST cannot reach through inter-procedural analysis, and the patterns that no existing rule covers because they depend on framework-specific semantics.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.75\textwidth]{Figures/iceberg_problem.png}
+    \caption{The vulnerability iceberg: reported CVEs are the visible tip; unresolved SAST alerts, unreachable code paths, and uncovered patterns form the submerged mass.}
+    \label{fig:iceberg}
+\end{figure}
+
+The theoretical root of this problem is well understood. Rice's Theorem~\cite{rice1953} establishes that every non-trivial semantic property of programs is undecidable. Any sound static analysis---one that guarantees no false negatives---must over-approximate and will inevitably produce false positives as a mathematical consequence. Abstract interpretation, the formal basis for sound SAST, navigates this impossibility by trading precision for soundness: if the analysis cannot prove a path is safe, it assumes the path is dangerous. This is correct behavior for a sound analyzer, but it means that every complex control flow, every indirect call, and every framework-specific dispatch mechanism generates a potential false positive.
+
+The question, then, is not whether SAST will produce false positives, but how to manage the ones it does produce. Current practice manages them by ignoring them---a failure mode documented by Johnson et al.~\cite{johnson2013} and confirmed by the Edgescan statistics. We propose a different approach: quantify the uncertainty of each finding, and route findings whose uncertainty exceeds a threshold to the analysis modality best equipped to resolve them. A hardcoded credential does not need an LLM to confirm it. A taint path through three abstraction layers does.
+
+
+% -----------------------------------------------------------------------------
+\subsection{Generations of Vulnerability Detection}
+% -----------------------------------------------------------------------------
+
+Automated vulnerability detection has evolved through three generations, each addressing limitations of its predecessor while introducing new failure modes.
+
+\textbf{First generation: pattern matching.} Tools like Flawfinder, RATS, and early Semgrep~\cite{semgrep2024} rules match syntactic patterns against known vulnerability signatures. A rule might flag every call to \texttt{strcpy()} or every SQL string concatenation involving user input. These tools are fast---often sub-second per file---and easy to understand, but they have no notion of data flow: they cannot determine whether user input actually reaches a dangerous sink, or whether sanitization occurs along the path. False positive rates routinely exceed 90\%~\cite{ghostsecurity2025}.
+
+Despite this limitation, pattern matching has an irreplaceable role. Its speed makes it the only viable first pass for large codebases. A Tree-sitter-based pre-screener can scan an entire repository in milliseconds, establishing a baseline set of candidate findings that deeper analyses can refine. The question is not whether to use pattern matching, but what to do with its output. SEC-C uses it as Stage~1: a fast, free filter that resolves trivial findings and identifies candidates for deeper analysis.
+
+\textbf{Second generation: data-flow and taint analysis.} CodeQL~\cite{codeql2024}, Fortify, and Coverity represent a substantial advance. They track how data propagates from sources (user input, environment variables, file reads) through transformations to sinks (SQL queries, shell commands, file writes). This dramatically improves precision for vulnerabilities that depend on data provenance: if no taint path exists from a user-controlled source to a dangerous sink, the finding can be dismissed with high confidence. CodeQL achieves 60.3\% precision on the OWASP Benchmark~\cite{siftingnoise2026}---better than pattern matching, but still flagging two false positives for every three true positives.
+
+The limitation is inter-procedural analysis. Tracking taint across function boundaries, through callbacks, into framework-specific dispatch mechanisms, and across serialization boundaries remains expensive and incomplete. CodeQL requires database construction (often 5--30~minutes for large projects) and cannot follow taint through dynamic dispatch, reflection, or dependency-injected service boundaries. These blind spots are precisely where the most exploitable vulnerabilities tend to hide, because attackers know that defenders cannot trace data flow through these boundaries.
+
+\textbf{Third generation: learned representations.} Graph Neural Networks (GNNs) operating on Code Property Graphs (CPGs)~\cite{cpg2014} promised to learn vulnerability patterns directly from data, bypassing the need for hand-written rules. The CPG, introduced by Yamaguchi et al.~\cite{cpg2014}, merges the Abstract Syntax Tree (AST), Control Flow Graph (CFG), and Data Flow Graph (DFG) into a single unified representation that captures both syntactic structure and semantic data propagation. Devign~\cite{devign2019} applied GNNs to a gated-graph representation of QEMU and FFmpeg functions and reported 63.7\% accuracy. ReGVD~\cite{regvd2022} combined regex features with GNN classification. LineVul~\cite{linevul2022} used transformers for line-level prediction. These models reported F1 scores between 60\% and 93\% on their respective benchmarks, suggesting that learned representations could surpass hand-written rules.
+
+The third generation also includes LLM-based approaches. LLM4Vuln~\cite{llm4vuln2024} evaluated GPT-3.5 and GPT-4 on vulnerability reasoning tasks, finding that LLMs can identify vulnerability types but struggle with precise localization. VulnHuntr~\cite{vulnhuntr2024} used LLMs for autonomous vulnerability discovery in Python packages. IRIS~\cite{iris2025} augmented CodeQL with LLM-inferred taint specifications, enabling the detection of 103.7\% more true vulnerabilities than CodeQL alone---a striking result that demonstrates the potential of combining SAST with LLM-based reasoning, albeit without cost optimization or selective escalation.
+
+Each generation improved on one axis while introducing regressions on others. Pattern matching is fast but imprecise. Taint analysis is precise for single-file flows but slow and incomplete for cross-file analysis. GNNs generalize from data but, as we show next, generalize to the wrong distribution. LLMs understand context but hallucinate at rates that make deterministic security guarantees impossible. No single modality covers the full space, and no existing system combines them with principled cost allocation.
+
+The natural response is to combine modalities---run SAST, then validate with a GNN, then confirm with an LLM. But naive combination does not solve the problem; it multiplies it. Running all three stages on every finding triples the analysis cost without improving the signal-to-noise ratio, because the expensive stages are invoked on findings that did not need them. The critical missing piece is a \textit{routing mechanism} that decides, for each individual finding, which stages to invoke. This routing mechanism must be (a)~principled rather than heuristic, (b)~calibrated so that its decisions can be trusted, and (c)~configurable so that operators can adjust the cost--accuracy trade-off for their deployment context. SEC-C provides such a mechanism through uncertainty-driven escalation.
+
+
+% -----------------------------------------------------------------------------
+\subsection{The Generalization Collapse}
+% -----------------------------------------------------------------------------
+
+The third generation's reported performance numbers are unreliable. Two independent studies---published at IEEE TSE and ICSE respectively---have demonstrated that standard vulnerability detection benchmarks contain systematic flaws that inflate model performance by an order of magnitude.
+
+The Real-Vul study~\cite{realvul2024} (IEEE TSE, 2024) constructed a realistic vulnerability dataset by applying strict deduplication, temporal splits, and label verification to existing corpora. When state-of-the-art deep learning models were re-evaluated on this data, the results were devastating:
+
+\begin{itemize}
+    \item Models achieving \textbf{93\% F1 on BigVul} dropped to as low as \textbf{2\% F1 on Real-Vul}---the same model, the same architecture, a different test set.
+    \item Precision declined by up to 95~percentage points.
+    \item The collapse affected GNN-based models (DeepWukong, ReVeal~\cite{reveal2021}, IVDetect~\cite{ivdetect2021}) and transformer-based models (LineVul~\cite{linevul2022}) alike.
+\end{itemize}
+
+PrimeVul~\cite{primevul2024} (ICSE 2025) independently confirmed these findings with a rigorously curated C/C++ dataset comprising approximately 7,000~vulnerable functions and 229,000~benign functions across 140+~CWE types. A state-of-the-art 7B-parameter model scored 68.26\% F1 on BigVul but only \textbf{3.09\% F1 on PrimeVul}. GPT-3.5 and GPT-4, evaluated in the most stringent setting, performed at levels ``akin to random guessing''~\cite{primevul2024}.
+
+The root cause is a compound of dataset pathologies: (i)~\textit{data leakage}---duplicate or near-duplicate functions appear in both train and test splits, allowing models to memorize rather than generalize; (ii)~\textit{unrealistic label distributions}---benchmark datasets often use 50/50 vulnerable/benign ratios, whereas real codebases contain $>$99\% benign code, so models trained on balanced data learn decision boundaries that do not transfer; and (iii)~\textit{temporal contamination}---patches from future commits appear in training data, giving models access to information they would not have at detection time. These pathologies are not edge cases; they are structural features of the most widely used evaluation corpora (BigVul, Devign, DiverseVul~\cite{diversevul2023}).
+
+The implications extend beyond academic benchmarks. Any system that relies on a single ML model for vulnerability classification---regardless of how well it performs on curated test sets---cannot be trusted in production without additional validation mechanisms. The reported numbers do not transfer to the codebases that developers actually maintain.
+
+This collapse motivates two fundamental design choices in SEC-C. First, the GNN at Stage~2 is never treated as a standalone oracle. Its predictions pass through a conformal prediction layer that quantifies how uncertain the model truly is, and ambiguous predictions are escalated to the LLM stage rather than accepted at face value. Second, the cascade architecture treats the GNN as one signal among several, not as a final arbiter. The fusion engine (Stage~4) combines GNN evidence with SAST evidence and LLM evidence, weighted by the empirical reliability of each modality for the specific CWE in question. A GNN prediction of ``vulnerable'' for CWE-89 (SQL injection) receives a lower weight than the LLM's verdict on the same finding, because injection vulnerabilities depend on semantic context that GNNs cannot fully capture from graph structure alone.
+
+LLMs face a parallel credibility problem. While they bring contextual understanding that statistical models lack---an LLM can reason about whether a parameterized query actually prevents SQL injection, or whether an encoding function covers the relevant character set---their outputs are neither deterministic nor verifiable. LLM4Vuln~\cite{llm4vuln2024} found hallucination rates up to 90\% when LLMs are used as vulnerability detectors: models fabricate CVE identifiers that do not exist, attribute CWE categories to unrelated code patterns, and confidently assert exploitability for code that is provably safe. Steenhoek et al.~\cite{steenhoek2024} documented that ChatGPT produces inconsistent outputs in 47--76\% of repeated coding tasks---the same prompt, the same code, different verdicts on different days.
+
+The inconsistency problem is not resolved by prompt engineering alone.
+Even with temperature set to zero, LLMs exhibit non-determinism due to
+floating-point arithmetic variations, batching effects, and model updates.
+A security tool that provides different answers on different invocations,
+with no mechanism to detect which answer is correct, cannot serve as the
+sole basis for triage decisions. What is needed is a mechanism that forces
+the LLM to produce structured evidence---not just a verdict---and then
+reconciles multiple perspectives through explicit decision rules. This is
+precisely what the dual-agent consensus protocol provides.
+
+
+The three-generation analysis reveals a pattern: each generation solves the
+previous generation's primary weakness while introducing a new one. Pattern
+matching solved the ``no automation'' problem but introduced massive false
+positives. Taint analysis reduced false positives for data-flow
+vulnerabilities but could not handle inter-procedural flows. GNNs promised
+to learn complex patterns from data but collapsed on realistic distributions.
+LLMs promised semantic understanding but hallucinated at scale. The pattern
+suggests that the next advance will not come from a fourth generation of
+single-modality analysis, but from a principled method of combining the
+existing three modalities so that each compensates for the others' weaknesses.
+That is the approach SEC-C takes.
+
+% =============================================================================
+\section{\uppercase{Problem Statement}}
+% =============================================================================
+
+The preceding analysis exposes a structural gap in vulnerability detection. SAST tools produce unacceptable false positive rates (68--95\%), rendering their output impractical for human review at scale. ML models achieve impressive benchmark scores that collapse by 90+ percentage points on realistic data, making their standalone predictions unreliable. LLMs bring semantic understanding but hallucinate at rates that preclude deterministic guarantees, and their non-determinism (47--76\% inconsistency) undermines reproducibility. No existing system addresses all three failure modes simultaneously, because no existing system adapts its analysis depth to the difficulty of each finding.
+
+We formalize this gap as the following problem:
+
+\textit{How can we construct a vulnerability detection framework that allocates analysis effort in proportion to finding difficulty, provides calibrated uncertainty estimates at each stage, and resolves conflicting evidence from heterogeneous analysis modalities---while maintaining economic viability for real-world deployment?}
+
+The economic dimension deserves emphasis. A naive approach---send every SAST finding to an LLM for validation---incurs costs that scale linearly with finding volume. At \$0.10--0.40 per LLM call and hundreds of findings per scan, the cost reaches \$10--40 per repository analysis. For organizations running nightly scans across hundreds of repositories, the annual LLM API cost alone can exceed \$500,000---a budget that few security teams command. The alternative---ignore SAST findings entirely---is the status quo, and it produces the breach statistics cited above. An effective system must find the middle ground: invoke expensive analysis only when cheap analysis is insufficient.
+
+The analogy to medical triage is instructive. An emergency department does not run every patient through an MRI. Patients with obvious conditions are treated immediately; ambiguous cases receive progressively more expensive diagnostic tests. The cost of an MRI is justified only when the initial examination is inconclusive. SEC-C applies this logic to code security: pattern matching is the initial examination, graph-based validation is the blood test, and LLM dual-agent analysis is the MRI. The uncertainty score plays the role of the triage nurse, deciding which patients need which tests.
+
+The central challenge is \textit{heterogeneity}: SAST, GNN, and LLM analyses produce fundamentally different kinds of evidence (rule matches, graph embeddings, and natural-language reasoning, respectively), at different costs, with different failure modes, and with different strengths across vulnerability classes. A framework that combines them must decide \textit{when} to invoke each modality (the routing problem), \textit{how} to quantify the confidence of each modality's output (the calibration problem), and \textit{how} to reconcile conflicting verdicts when multiple modalities disagree (the fusion problem). These three sub-problems---routing, calibration, and fusion---have not been addressed jointly in any published system.
+
+Consider a concrete example. A SAST tool flags a call to \texttt{subprocess.run()} with user-controlled input as a potential command injection (CWE-78). The finding is plausible but uncertain: the tool cannot determine whether the input is sanitized upstream. A GNN analyzes the code property graph and outputs $P(\text{vulnerable}) = 0.62$---above the default threshold but not highly confident. An LLM examines the code and finds that the input passes through \texttt{shlex.quote()} before reaching the shell command. Which verdict should the system trust? The answer depends on the CWE category (injection CWEs benefit from LLM context), the confidence level of each modality (the GNN is ambiguous, the LLM is specific), and the cost constraints of the deployment (the LLM call was justified because the SAST uncertainty was high). SEC-C formalizes this reasoning into a principled pipeline.
+
+Solving this problem requires addressing a paradox: the most accurate analysis methods (LLMs with RAG context) are also the most expensive and least deterministic, while the cheapest methods (pattern matching) are also the least precise. A naive cost-accuracy curve would force organizations to choose a single point on this trade-off. SEC-C's cascade architecture provides a different answer: apply each method to the subset of findings where it provides the most value. The formal objective is to minimize total analysis cost subject to a target detection accuracy, or equivalently, to maximize detection accuracy subject to a cost budget.
+
+We decompose the overarching problem into six objectives:
+
+\begin{enumerate}
+    \item \textbf{Selective escalation.} Design a mathematically principled uncertainty scoring model that identifies which SAST findings require deeper analysis and which can be resolved cheaply, targeting $\geq$75\% resolution at the SAST stage alone.
+
+    \item \textbf{Calibrated uncertainty for graph-based classification.} Apply conformal prediction to GNN-based vulnerability classification so that the model produces prediction sets with formal coverage guarantees ($P(\text{true label} \in \text{set}) \geq 1 - \alpha$) rather than uncalibrated softmax probabilities.
+
+    \item \textbf{Adversarial LLM validation.} Replace single-model LLM classification---which suffers from confirmation bias and 47--76\% inconsistency~\cite{steenhoek2024}---with a dual-agent adversarial protocol where an attacker agent and a defender agent independently analyze each finding, and a consensus engine reconciles their verdicts.
+
+    \item \textbf{CWE-adaptive score fusion.} Develop a fusion mechanism that assigns different weights to SAST, GNN, and LLM evidence depending on the vulnerability class (CWE), reflecting the empirical observation that injection CWEs benefit from LLM context understanding, cryptographic CWEs are detectable by SAST patterns alone, and memory CWEs require structural graph analysis.
+
+    \item \textbf{End-to-end cascade integration.} Integrate the above components into a functioning pipeline that processes source code in five languages (Python, JavaScript/TypeScript, Java, C/C++, Go) and produces SARIF~2.1.0 reports with per-finding provenance through the cascade. The system must degrade gracefully when external tools (CodeQL, Joern, LLM API keys) are unavailable, resolving findings at the highest available stage rather than failing entirely.
+
+    \item \textbf{Economic viability.} Demonstrate that the cascade architecture reduces LLM API costs by $\geq$85\% compared to a full-LLM baseline, achieving a target cost of \$0.50--2.00 per scan versus \$10--40 for uniform LLM analysis. The framework must operate entirely on free-tier resources (Gemini free tier: 15~RPM / 500~RPD; Groq: 30~RPM / 1,000~RPD) to ensure reproducibility by any researcher without paid API access.
+\end{enumerate}
+
+
+% =============================================================================
+\section{\uppercase{Motivation}}
+% =============================================================================
+
+Three technical gaps motivate the specific design decisions in SEC-C. Each gap corresponds to a failure mode that existing tools do not address, and each motivates a distinct innovation in our framework. Collectively, these innovations address the routing, calibration, and fusion sub-problems identified in the problem statement.
+
+The three gaps are: (1)~no existing system uses a principled measure to decide which findings need deeper analysis (Gap~1: routing); (2)~no existing vulnerability detection tool provides formal coverage guarantees on its predictions (Gap~2: calibration); and (3)~no existing LLM-based triage system employs adversarial multi-agent validation to mitigate hallucination and confirmation bias (Gap~3: validation). We address each in turn.
+
+% -----------------------------------------------------------------------------
+\subsection{Uncertainty-Driven Escalation}
+% -----------------------------------------------------------------------------
+
+Every SAST tool produces a mix of trivial findings and ambiguous findings. A hardcoded password (\texttt{password = "admin123"}) is trivially confirmable by pattern matching---no data-flow analysis, no semantic reasoning, no LLM call required. An SQL injection through three layers of input sanitization genuinely requires deeper analysis to determine whether the sanitizers are sufficient, whether they cover the relevant character set, and whether any code path bypasses them. Existing tools treat these findings identically: both are flagged with the same severity, both require the same manual review effort, and both consume the same analysis budget if forwarded to an LLM.
+
+The key insight behind SEC-C is that \textbf{not all findings need the same analysis depth}. We formalize this observation with a 4-factor uncertainty score:
+
+\begin{equation}
+U = w_{\text{conf}} \cdot U_{\text{confidence}} + w_{\text{comp}} \cdot U_{\text{complexity}} + w_{\text{nov}} \cdot U_{\text{novelty}} + w_{\text{confl}} \cdot U_{\text{conflict}} + U_{\text{severity}}
+\label{eq:ch1-uncertainty}
+\end{equation}
+
+\noindent where $w_{\text{conf}} = 0.4$, $w_{\text{comp}} = 0.3$, $w_{\text{nov}} = 0.2$, $w_{\text{confl}} = 0.1$, and $U_{\text{severity}}$ is an additive adjustment (+0.15 for CRITICAL, +0.10 for HIGH, 0.00 for MEDIUM, $-$0.05 for LOW). Each factor captures a distinct source of analytical uncertainty:
+
+\begin{itemize}
+    \item $U_{\text{confidence}} = 1 - s_{\text{SAST}}$: the inverse of the SAST tool's own confidence score. When the tool reports low confidence, this term drives the uncertainty upward.
+    \item $U_{\text{complexity}}$: a normalized measure of taint path length and call depth, reflecting the structural difficulty of tracking data flow. A finding with a 5-hop taint path across three files is harder to validate than a single-statement pattern match.
+    \item $U_{\text{novelty}}$: how rare the matched CWE pattern is in the tool's rule set, capturing the risk that unusual patterns trigger unreliable rules. CWE-502 (deserialization) rules are less mature than CWE-89 (SQL injection) rules.
+    \item $U_{\text{conflict}}$: disagreement between multiple SAST rules or tools that fire on the same location. If Tree-sitter flags a finding but CodeQL's taint analysis finds no reachable path, the conflict signal rises.
+\end{itemize}
+
+Findings with $U < 0.5$ are resolved at the SAST stage. Findings with $U \geq 0.5$ are escalated to graph-based validation. This threshold is configurable per deployment, allowing operators to trade precision for cost---a lower threshold escalates more aggressively (higher cost, fewer missed vulnerabilities), while a higher threshold resolves more at SAST (lower cost, higher risk of false negatives). The severity adjustment ensures that CRITICAL findings receive a bias toward escalation---a deliberate asymmetry reflecting the observation that the cost of missing a critical vulnerability exceeds the cost of an unnecessary API call by orders of magnitude.
+
+No published system uses a quantified uncertainty measure to selectively escalate between analysis modalities. We surveyed five recent hybrid systems and found that all of them apply their expensive stages uniformly:
+
+\begin{itemize}
+    \item \textbf{IRIS}~\cite{iris2025} (ICLR 2025) augments CodeQL with LLM-inferred taint specifications but applies the LLM uniformly to all queries---every CodeQL finding triggers an LLM call regardless of difficulty.
+    \item \textbf{Vulnhalla}~\cite{vulnhalla2025} (CyberArk 2025) post-filters CodeQL output through an LLM but processes every finding identically, achieving up to 96\% FP reduction at full LLM cost.
+    \item \textbf{ZeroFalse}~\cite{zerofalse2025} (arXiv 2025) enriches SAST traces for LLM adjudication without selective escalation, achieving 0.912~F1 on the OWASP Benchmark.
+    \item \textbf{LLMxCPG}~\cite{llmxcpg2025} (USENIX Security 2025) uses a two-phase CPG plus LLM pipeline but applies both phases to all inputs.
+\end{itemize}
+
+\noindent In each case, the expensive analysis is invoked for every finding regardless of difficulty, incurring costs that scale linearly with finding volume. SEC-C is the first system to formalize the escalation decision as a threshold in uncertainty space, enabling sub-linear cost scaling.
+
+Figure~\ref{fig:sast-gaps} maps existing tools against the two axes that
+matter for practical deployment: analysis depth (vertical axis) and cost
+efficiency (horizontal axis). First-generation pattern matchers occupy the
+low-depth, low-cost quadrant. LLM-only approaches sit in the high-depth,
+high-cost quadrant. Hybrid systems like IRIS and ZeroFalse occupy the
+high-depth, medium-cost region---they achieve deep analysis but at uniform
+cost across all findings. SEC-C targets the high-depth, low-cost quadrant
+by invoking expensive analysis only when cheap analysis is measurably
+insufficient. The uncertainty-driven cascade makes the cost proportional
+to the difficulty of the finding rather than to the total finding volume.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.78\textwidth]{Figures/sast_gaps_quadrant.png}
+    \caption{Positioning of vulnerability detection approaches along analysis depth and cost efficiency. SEC-C occupies the high-depth, low-cost region through selective escalation.}
+    \label{fig:sast-gaps}
 \end{figure}
 
 
-\begin{adjustwidth}{-2.5cm}{-2.5cm}  % Adjust width slightly if necessary
+% -----------------------------------------------------------------------------
+\subsection{Conformal Prediction for Code Security}
+% -----------------------------------------------------------------------------
+
+The generalization collapse documented in Section~1.1.3 means that GNN softmax probabilities cannot be trusted as confidence estimates. A model that outputs $P(\text{vulnerable}) = 0.85$ on BigVul-distributed data may produce equally confident scores on out-of-distribution inputs where it has no genuine discriminative ability. Guo et al.~\cite{guocalibration2017} demonstrated that modern neural networks are systematically overconfident: their predicted probabilities exceed their actual accuracy, often by wide margins. This miscalibration is especially dangerous in security contexts, where a confidently wrong prediction can cause a genuine vulnerability to be dismissed.
+
+Conformal prediction~\cite{angelopoulos2023, vovk2005} provides a principled alternative that has gained significant traction in safety-critical domains over the past five years. The key idea is elegant: rather than outputting a single class label with an uncalibrated probability, conformal prediction produces a \textit{prediction set} $\mathcal{C}(x)$ that satisfies a formal coverage guarantee:
+
+\begin{equation}
+P\!\left(y_{\text{true}} \in \mathcal{C}(x)\right) \geq 1 - \alpha
+\label{eq:ch1-conformal}
+\end{equation}
+
+\noindent for any user-specified $\alpha \in (0,1)$, and for \textit{any} data distribution---the guarantee is distribution-free, requiring only that calibration and test data are exchangeable~\cite{barber2023}. With $\alpha = 0.1$, the true label is contained in the prediction set at least 90\% of the time.
+
+The Adaptive Prediction Sets (APS) method~\cite{romano2020} produces prediction sets whose size reflects the model's true uncertainty rather than its reported confidence. For a well-calibrated model analyzing easy inputs, most predictions produce singleton sets---$\{$\textit{safe}$\}$ or $\{$\textit{vulnerable}$\}$---indicating that the model can distinguish the classes. For genuinely ambiguous inputs, the prediction set expands to include both labels: $\{$\textit{safe}, \textit{vulnerable}$\}$. The coverage guarantee applies regardless of which case obtains.
+
+SEC-C is, to the best of our knowledge, the \textbf{first application of conformal prediction to vulnerability detection}. Conformal prediction has been applied to medical imaging (where it provides safety margins on tumor classifications), drug discovery (where it quantifies uncertainty in molecular property predictions), autonomous driving (where it produces reliable confidence intervals on object detection), and natural language inference~\cite{angelopoulos2023}. Barber et al.~\cite{barber2023} extended the theory beyond exchangeability, enabling conformal prediction under covariate shift---a setting directly relevant to vulnerability detection, where the test distribution (new codebases) systematically differs from the training distribution (curated datasets). No prior work applies conformal prediction to code security classification.
+
+In our framework, the prediction set serves a dual purpose:
+
+\begin{enumerate}
+    \item \textbf{Uncertainty quantification}: a singleton set means the GNN is confident; the finding is resolved at Stage~2. An ambiguous set means the GNN cannot distinguish the classes with $1-\alpha$ coverage; the finding is escalated to Stage~3 (LLM dual-agent).
+    \item \textbf{Coverage guarantee}: regardless of how poorly the GNN generalizes to a new codebase, the conformal wrapper ensures that the true label is captured at least $1-\alpha$ of the time. This is a statistical contract that survives distribution shift---precisely the scenario where uncalibrated point predictions fail catastrophically.
+\end{enumerate}
+
+The intuition is straightforward. Consider a GNN trained on vulnerability data that encounters a function it has never seen before---perhaps from a language framework absent from its training set. A softmax classifier will still produce a confident prediction (e.g., $P(\text{vulnerable}) = 0.78$), because softmax assigns probability mass across all classes regardless of whether the model has learned to distinguish them for this input. The conformal wrapper, by contrast, recognizes that the model's nonconformity scores for this input are not extreme relative to the calibration set, and produces the ambiguous set $\{$\textit{safe}, \textit{vulnerable}$\}$. This honest admission of uncertainty is precisely what the cascade needs to route the finding to the LLM stage.
+
+The singleton rate---the fraction of inputs that produce singleton prediction sets---directly controls cascade efficiency. A higher singleton rate means more findings are resolved at Stage~2 without expensive LLM involvement. Our target is a 60--70\% singleton rate at $\alpha = 0.1$, which would resolve approximately 10--15\% of all original findings at the graph stage and reduce LLM calls correspondingly. The trade-off is explicit and tunable: tightening $\alpha$ from 0.10 to 0.05 increases coverage from 90\% to 95\% but widens prediction sets, reducing the singleton rate and escalating more findings to the LLM. Loosening $\alpha$ to 0.20 increases the singleton rate but reduces the coverage guarantee to 80\%, accepting a higher risk of miscoverage. The operator chooses $\alpha$ based on their risk tolerance, and the framework respects that choice with a formal guarantee rather than an ad-hoc heuristic.
+
+
+% -----------------------------------------------------------------------------
+\subsection{Adversarial Dual-Agent Validation}
+% -----------------------------------------------------------------------------
+
+LLMs bring semantic understanding that neither SAST nor GNNs possess. An LLM can reason about whether a parameterized query actually prevents injection, whether an encoding function covers the relevant character set, or whether an access control check is bypassed by a specific request path. But LLMs are unreliable oracles. Steenhoek et al.~\cite{steenhoek2024} found that LLMs exhibit high non-determinism, producing inconsistent outputs in 47--76\% of coding tasks across repeated runs. LLM4Vuln~\cite{llm4vuln2024} documented hallucination rates approaching 90\% when LLMs are used as vulnerability detectors in CI pipelines---the models fabricate vulnerabilities that do not exist or misattribute CWE categories to unrelated code patterns.
+
+Single-model classification amplifies these failure modes through confirmation bias: once the model forms an initial assessment, it tends to reinforce rather than challenge that assessment. If the prompt frames the code as potentially vulnerable, the model generates reasoning to support that framing. If the prompt is neutral, the model's prior---shaped by training data where ``vulnerable'' examples are overrepresented---still biases the output. A single-pass LLM analysis provides no mechanism to detect when its own reasoning is flawed.
+
+Multi-agent debate offers a structural remedy. Du et al.~\cite{multiagentdebate2023} demonstrated that having multiple LLM agents debate a question and iteratively refine their answers improves factual accuracy by 20--40\% across arithmetic, strategic reasoning, and knowledge-intensive tasks. Liang et al.~\cite{divergentthinking2023} showed similar gains from encouraging divergent thinking through multi-agent interaction. The improvement arises because agents must respond to counterarguments, exposing weaknesses in initial reasoning that a single-pass analysis would never surface.
+
+The application to vulnerability triage is natural. Security analysis is inherently adversarial: an attacker looks for weaknesses while a defender looks for protections. These two perspectives produce different kinds of evidence. An attacker focuses on whether a viable payload exists and whether the execution path is reachable. A defender focuses on whether sanitizers are present, whether input validation is complete, and whether framework-level protections (CSRF tokens, Content Security Policy headers, parameterized query APIs) are active. Both perspectives are necessary for a sound verdict; neither alone is sufficient.
+
+SEC-C applies this principle to vulnerability triage with a domain-specific design: the two agents embody adversarial roles that map naturally to security analysis.
+
+\begin{itemize}
+    \item The \textbf{Attacker Agent} (red team) receives a finding and attempts to construct a concrete exploit. It traces the execution path from source to sink, identifies blocking factors (sanitizers, validators, WAFs), and outputs a structured \texttt{AttackerVerdict} with exploitability assessment, attack vector, and four CVSS~v3.1~\cite{cvss31} sub-metrics (Attack Vector, Attack Complexity, Privileges Required, User Interaction).
+
+    \item The \textbf{Defender Agent} (blue team) receives the same finding with identical context and identifies every sanitizer, access control check, and framework protection along the data-flow path. It outputs a structured \texttt{DefenderVerdict} with a defense coverage score (0.0--1.0), a list of identified sanitizers, a path feasibility assessment, and four CVSS sub-metrics (Scope, Confidentiality Impact, Integrity Impact, Availability Impact).
+
+    \item The \textbf{Consensus Engine} reconciles the two verdicts using five decision rules that encode security triage logic: R1~(CONFIRMED), R2~(SAFE), R2b~(SAFE via infeasible path), R3~(LIKELY), and R4~(POTENTIAL). When the attacker finds an exploitable path and the defender finds insufficient coverage ($< 0.5$), the finding is CONFIRMED. When the attacker finds no exploit and the defender identifies strong defenses ($> 0.7$), the finding is marked SAFE. Mixed verdicts produce LIKELY or POTENTIAL classifications with confidence scores derived from the agreement level between agents.
+\end{itemize}
+
+The adversarial framing is not arbitrary---it reflects the structure of real-world vulnerability triage. When a security team evaluates a finding, they implicitly conduct both analyses: ``Can this be exploited?'' and ``Are the defenses sufficient?'' By externalizing these two perspectives into separate agents with separate prompts, we force the LLM to produce evidence for both sides rather than settling on a single narrative. The consensus engine then weighs the evidence, producing verdicts that are more defensible than any single-pass classification.
+
+Both agents receive identical Retrieval-Augmented Generation (RAG) context from a hybrid knowledge base containing 200,000+~NVD entries and 900+~CWE descriptions, retrieved via FAISS semantic search and BM25 keyword matching combined through Reciprocal Rank Fusion~(RRF). The RAG context provides grounding: instead of relying solely on the LLM's parametric knowledge---which is frozen at training time and may not cover recent CVEs---the agents receive current vulnerability descriptions, known attack patterns, and recommended mitigations for the specific CWE in question. CWE-specific Jinja2 prompt templates encode domain expertise at the prompt level: the SQL injection attacker template checks for parameterized queries, ORM usage, and WAF presence; the deserialization attacker template examines gadget chain availability and type filtering; the cryptographic defender template verifies key length, mode of operation, and initialization vector handling.
+
+The design avoids the infinite regress problem: ``Who validates the validator?'' In SEC-C, the LLM is not the final arbiter---the consensus engine is. The engine applies deterministic rules to structured evidence. If the attacker agent claims exploitability with high confidence but the defender agent identifies a complete defense, the engine applies Rule~3 (LIKELY) regardless of what either agent ``thinks.'' This deterministic reconciliation step converts the LLM's probabilistic, non-deterministic output into a reproducible verdict.
+
+Figure~\ref{fig:pipeline-simple} provides a high-level view of the complete pipeline, showing how findings flow from source code through all four stages to a final report.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.85\textwidth]{Figures/pipeline_overview_simple.png}
+    \caption{High-level overview of the SEC-C pipeline. Source code enters Stage~1 (SAST), uncertain findings escalate to Stage~2 (Graph+GNN), ambiguous predictions escalate to Stage~3 (LLM dual-agent), and all findings converge at Stage~4 (fusion and reporting).}
+    \label{fig:pipeline-simple}
+\end{figure}
+
+
+% =============================================================================
+\section{\uppercase{Research Questions and Contributions}}
+% =============================================================================
+
+We structure our investigation around five research questions, each tied to a specific contribution and evaluated with empirical evidence. Table~\ref{tab:rq-mapping} maps each question to its contribution, the chapter containing the corresponding evidence, and the evaluation approach.
+
+\begin{table}[H]
 \centering
-\begin{threeparttable}[!htb]
-\caption{Table Caption}\label{SampleTable}
-\normalsize % You can adjust the font size here (use \footnotesize for a slightly larger font)
-\begin{tabularx}{\textwidth}{>{\hsize=0.65\hsize}X >{\hsize=0.85\hsize}X >{\hsize=1.5\hsize}X}  % Adjust column widths
+\caption{Research questions mapped to contributions and evidence chapters.}
+\label{tab:rq-mapping}
+\begin{tabular}{@{}clp{6.2cm}c@{}}
 \toprule
-\textbf{Column 1} & \textbf{Column 2} & \textbf{Column 3} \\\midrule
-Data 1 & Data A & More Information \\
-Data 2 & Data B & Even More Information \\
-Data 3 & Data C & Some More Information \\
+\textbf{RQ} & \textbf{Contribution} & \textbf{Question} & \textbf{Evidence} \\
+\midrule
+RQ1 & C1 & Can uncertainty-driven cascading reduce unnecessary escalation while maintaining detection accuracy? & Ch.~4 \\
+RQ2 & C2 & Does conformal prediction provide meaningful uncertainty quantification for GNN-based vulnerability classification? & Ch.~4 \\
+RQ3 & C3 & Does adversarial dual-agent consensus outperform single-LLM classification in accuracy and explainability? & Ch.~4 \\
+RQ4 & C4 & Do CWE-adaptive fusion weights improve classification over fixed weights? & Ch.~4 \\
+RQ5 & C5 & Can a three-stage cascade achieve better cost--accuracy trade-offs than any single-stage baseline? & Ch.~4 \\
 \bottomrule
-\end{tabularx}
-\end{threeparttable}
-\end{adjustwidth}
+\end{tabular}
+\end{table}
+
+The five research questions form a progression from individual components to the integrated system. RQ1 and RQ2 evaluate the two escalation mechanisms (uncertainty scoring and conformal prediction) that govern the cascade's routing decisions. RQ3 evaluates the LLM stage's dual-agent design in isolation. RQ4 evaluates the fusion mechanism that combines evidence across stages. RQ5 evaluates the end-to-end system, asking whether the cascade as a whole outperforms any individual stage operating alone. This structure ensures that each component is validated independently before the integrated system is assessed.
+
+We now present the five contributions and their target metrics. Each contribution addresses a specific gap identified in the preceding sections, and each is implemented as a distinct, testable component within the SEC-C framework.
+
+\textbf{Contribution 1: Uncertainty-driven cascading escalation (C1).} We introduce a 4-factor uncertainty scoring model (Equation~\ref{eq:ch1-uncertainty}) that routes findings through a SAST $\to$ Graph $\to$ LLM cascade. Each finding is resolved at the cheapest stage whose uncertainty falls below a configurable threshold. This is the first system to formalize SAST-to-LLM escalation as a decision boundary in uncertainty space rather than applying all stages uniformly. The four uncertainty factors---confidence, complexity, novelty, and conflict---capture orthogonal sources of analytical ambiguity, and the severity adjustment introduces a deliberate asymmetry that prioritizes safety for high-severity findings. \textit{Target}: SAST resolution rate of 85\% (evaluated on 184 findings across 15 repositories), yielding $\geq$85\% fewer LLM API calls compared to uniform LLM analysis.
+
+\textbf{Contribution 2: Conformal prediction for code security (C2).} We apply Adaptive Prediction Sets (APS) to GNN-based vulnerability classification, providing distribution-free coverage guarantees (Equation~\ref{eq:ch1-conformal}) and using prediction set cardinality as the escalation criterion at Stage~2. This is the first application of conformal prediction to vulnerability detection in the published literature. \textit{Target}: $\geq$60\% singleton rate at $\alpha = 0.1$, providing a meaningful filter between the graph and LLM stages with a 90\% coverage guarantee.
+
+\textbf{Contribution 3: Adversarial dual-agent consensus (C3).} We replace single-model LLM classification with an attacker--defender protocol backed by five structured consensus rules (R1: CONFIRMED, R2: SAFE, R2b: SAFE via infeasible path, R3: LIKELY, R4: POTENTIAL) and CWE-specific prompt templates. Both agents receive identical RAG context from a hybrid FAISS+BM25 knowledge base containing 200,000+~NVD entries and 900+~CWE descriptions. The adversarial framing forces each agent to produce structured evidence (attack vectors, sanitizer analyses, CVSS sub-metrics) rather than bare assertions, improving both accuracy and explainability. The consensus engine applies deterministic rules to the structured evidence, converting non-deterministic LLM outputs into reproducible verdicts. \textit{Target}: measurably higher agreement and explainability than single-agent baselines, with CVSS~v3.1 score generation for every LLM-validated finding.
+
+\textbf{Contribution 4: CWE-adaptive score fusion (C4).} We fuse SAST, GNN, and LLM evidence using per-CWE weight profiles calibrated to the strengths of each analysis modality. The key observation is that vulnerability classes respond differently to different analysis methods. Injection CWEs (CWE-78, -79, -89) receive LLM-heavy weights ($\gamma = 0.50$) because determining exploitability requires understanding sanitization context, framework-specific escaping functions, and ORM query builders---semantic properties that only the LLM can evaluate. Cryptographic CWEs (CWE-327, -328) receive SAST-heavy weights ($\alpha = 0.50$) because weak algorithm usage (MD5, SHA-1, DES) is syntactically identifiable by pattern matching, and LLMs miss these patterns 77--84\% of the time according to published evaluations. Memory CWEs (CWE-119, -416, -476) receive graph-heavy weights ($\beta = 0.50$) because use-after-free and null dereference patterns are structural properties of the program's control flow, captured by the Code Property Graph and amenable to graph attention. \textit{Target}: 14~CWE-specific weight profiles with measurably better classification accuracy than fixed uniform weights ($0.33, 0.33, 0.34$).
+
+\textbf{Contribution 5: End-to-end cascade framework (C5).} We integrate contributions C1--C4 into a working pipeline supporting five languages (Python, JavaScript/TypeScript, Java, C/C++, Go), two LLM providers (Gemini~2.5 and Groq Llama~3.3~70B), SARIF~2.1.0 output with custom \texttt{sec-c/*} properties, and graceful degradation when external tools (CodeQL, Joern, LLM API keys) are unavailable. The framework is fully asynchronous, supporting concurrent Stage~2 validation and batched Stage~3 LLM calls (up to 5~findings per API request) to maximize throughput within rate limits. Most research tools target a single language (IRIS: Java; LLMxCPG: C/C++); SEC-C provides multi-language coverage through language-specific Tree-sitter grammars, CodeQL query packs, and CWE mappings. \textit{Target}: 100\% finding resolution across all test inputs with per-finding provenance through the cascade.
+
+Figure~\ref{fig:ch1-cascade-arch} presents the four-stage cascade architecture showing how these contributions integrate into the processing pipeline. The green dashed arrows represent findings resolved at each stage; red arrows represent escalation to a more expensive stage. The progressive narrowing---85\% at Stage~1, 2\% at Stage~2, 13\% at Stage~3---is the source of the framework's economic advantage.
+
+% Cascade Architecture TikZ (adapted from tikz_templates.tex, Diagram 1)
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    stage/.style={draw, rounded corners, minimum width=3.5cm, minimum height=1.2cm, align=center, font=\small\bfseries},
+    arrow/.style={-{Stealth[length=3mm]}, thick},
+    resolved/.style={-{Stealth[length=3mm]}, thick, dashed, color=green!60!black},
+    escalated/.style={-{Stealth[length=3mm]}, thick, color=red!60!black},
+    label/.style={font=\footnotesize, midway, above},
+    pct/.style={font=\footnotesize\itshape, midway, below}
+]
+    \node[stage, fill=blue!15] (input) {Source Code\\Input};
+    \node[stage, fill=orange!20, right=2cm of input] (sast) {Stage 1\\SAST Pre-Screener};
+    \node[stage, fill=yellow!20, right=2cm of sast] (graph) {Stage 2\\Graph Validator};
+    \node[stage, fill=red!15, below=2cm of graph] (llm) {Stage 3\\LLM Dual-Agent};
+    \node[stage, fill=green!15, below=2cm of sast] (fusion) {Stage 4\\Score Fusion};
+    \node[stage, fill=purple!15, left=2cm of fusion] (report) {Final\\Report};
+
+    \draw[arrow] (input) -- (sast);
+    \draw[resolved] (sast) -- node[label] {Resolved} node[pct] {$\sim$85\%} (fusion);
+    \draw[escalated] (sast) -- node[label] {Escalated} node[pct] {$U \geq 0.5$} (graph);
+    \draw[resolved] (graph) -- node[label, right] {Singleton} (fusion);
+    \draw[escalated] (graph) -- node[label] {Ambiguous} (llm);
+    \draw[arrow] (llm) -- node[label, left] {Validated} (fusion);
+    \draw[arrow] (fusion) -- (report);
+\end{tikzpicture}
+\caption{Four-stage cascade architecture with uncertainty-driven escalation. Green dashed arrows indicate findings resolved at that stage; red arrows indicate escalation to a deeper analysis. Approximately 85\% of findings resolve at Stage~1, 2\% at Stage~2, and 13\% at Stage~3.}
+\label{fig:ch1-cascade-arch}
+\end{figure}
+
+Taken together, the five contributions address the three failure modes
+identified in Section~1.1. C1 and C5 address SAST's false positive problem
+by resolving most findings cheaply and escalating only the ambiguous ones.
+C2 addresses the GNN generalization collapse by wrapping predictions in
+formal coverage guarantees that survive distribution shift. C3 addresses
+LLM hallucination and inconsistency by requiring adversarial consensus
+rather than accepting single-model verdicts. C4 ties all three modalities
+together with a fusion mechanism that respects the empirical strengths
+and weaknesses of each stage for each vulnerability class.
+
+The contributions are also designed to be independently valuable. An
+organization that cannot deploy the GNN (Stage~2) still benefits from
+uncertainty-driven SAST escalation (C1) and dual-agent LLM validation (C3).
+An organization that cannot afford LLM API calls still benefits from SAST
+pre-screening and conformal prediction (C1 + C2). The cascade degrades
+gracefully: when a stage is unavailable, its findings escalate to the next
+available stage rather than being lost. This modularity ensures that the
+framework provides value even in constrained deployment environments.
 
 
-\doublespacing{\textbf{Table \ref{SampleTable}} Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum. }
+% =============================================================================
+\section{\uppercase{Report Organization}}
+% =============================================================================
+
+The remainder of this report is organized into four chapters that follow the standard structure of problem analysis, system design, empirical evaluation, and synthesis.
+
+\textbf{Chapter~2: Literature Survey.} We survey existing approaches to vulnerability detection across three modalities---SAST, graph-based ML, and LLM-based---and review the benchmarking crisis exposed by Real-Vul and PrimeVul. We examine concurrent hybrid systems (IRIS, Vulnhalla, ZeroFalse, LLMxCPG) along seven comparison dimensions: architecture, cascade mechanism, graph analysis, conformal prediction, LLM role, score fusion, and language coverage. We identify four open research gaps---no selective escalation, no calibrated uncertainty, no adversarial LLM validation, and no CWE-adaptive fusion---that collectively motivate our five contributions.
+
+\textbf{Chapter~3: System Design and Architecture.} We present the full technical design of SEC-C's four-stage cascade. Stage~1 covers the Tree-sitter pre-screener (24~patterns across 5~languages) and CodeQL taint analysis, together with the 4-factor uncertainty scoring model. Stage~2 describes the Joern-based CPG construction, backward program slicing, GraphCodeBERT embedding pipeline (768~dimensions + 6~structural features), MiniGINv3 architecture (three-layer Graph Isomorphism Network with residual connections, 2.4M~parameters), and APS conformal prediction layer. Stage~3 details the dual-agent consensus protocol: attacker and defender agent design, CWE-specific Jinja2 prompt templates, hybrid FAISS+BM25 RAG retrieval, and the five-rule consensus engine with CVSS~v3.1 score computation. Stage~4 specifies the CWE-adaptive fusion formula and three-tier classification thresholds. Each component is described with sufficient detail to support independent reproduction.
+
+\textbf{Chapter~4: Implementation and Results.} We describe the implementation (63~Python modules, 5~language grammars, 2~LLM providers) and report empirical results. GNN training is documented across five model iterations (V2 through V5 plus deployment calibration V6), including architecture changes, dataset composition, and performance metrics. Cascade performance is evaluated on Python test inputs covering 15~CWE types across 184~findings. We present evidence addressing each research question: RQ1~(cascade resolution rates), RQ2~(conformal singleton rates and coverage), RQ3~(dual-agent versus single-agent agreement), RQ4~(CWE-adaptive versus fixed weights), and RQ5~(end-to-end cost and accuracy). We report both achieved metrics and known limitations with full transparency, distinguishing between realized and projected performance.
+
+\textbf{Chapter~5: Conclusion and Future Directions.} We summarize findings against the six objectives stated in Section~1.2, assess which were fully met and which remain partially addressed, and discuss three categories of threats to validity (internal, external, and construct). We outline future directions including expanded multi-language training, formal evaluation on the OWASP Benchmark v1.2, empirical calibration of CWE-adaptive fusion weights via Bayesian optimization, and DAST integration for runtime confirmation.
+
+The gaps identified in this chapter---SAST false positive rates that render automated detection impractical, ML models that collapse on realistic data, and LLMs that hallucinate without accountability---motivate the systematic survey of recent approaches that follows in Chapter~2.
+

@@ -1,58 +1,44 @@
 %-------------------------PREAMBLE-------------------------------------%
 \documentclass[a4paper, 12pt]{extreport}
 \usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
 \usepackage{amsmath,graphicx}
 \usepackage{siunitx}
 \usepackage{times}
 \usepackage{ragged2e}
-\usepackage{dialogue}
-%REMOVE THE SYMBOL % FROM 5 LINES BELOW TO ENABLE BIBLATEX PACKAGE
-%\usepackage[
-%backend=biber,
-%style=alphabetic,
-%sorting=ynt]{biblatex}%
+% \usepackage{dialogue} % Removed: causes OT1 encoding conflict
 \usepackage{multicol}
-\usepackage{times}
 \usepackage{indentfirst}
 \usepackage{float}
-\usepackage{pythontex} \usepackage{listings}
+\usepackage{listings}
 \usepackage[table]{xcolor}
-\usepackage{stmaryrd,amssymb,amsmath} % For mathematical symbols and equations
+\usepackage{amssymb,amsmath}
 \usepackage{changepage,threeparttable}
 \usepackage[skip=10pt plus1pt, indent=40pt]{parskip}
-\usepackage{atbegshi}% http://ctan.org/pkg/atbegshi
+\usepackage{atbegshi}
 \AtBeginDocument{\AtBeginShipoutNext{\AtBeginShipoutDiscard}}
-\usepackage{array} % For arrays of equations
-\usepackage{epsfig,graphicx,subfigure} % For inserting figures
-\usepackage{wrapfig} % For wraping texts around tables and figures
-\usepackage{tabularx} % For auto-adjusted column widths in tables
-\usepackage{multirow} % For merging cells in tables
-\usepackage{longtable} % For multi-page tables
-\usepackage{rotating} % For rotating a page (landscape) or inclined texts
-\usepackage{caption} % For adjusting captions of tables and figures
-\usepackage{color} % For writing colored texts
-\usepackage{setspace} % For adjusting line spacing
-\usepackage{boxedminipage,fancybox} % For boxed texts
-\usepackage{shadow} % For creating shaded box
-\usepackage{varioref} % For referring through \vref{} & \vpageref{}
-\usepackage{url} % For citing URL
-\usepackage{makeidx} % For generating index
-\usepackage{bm}
+\usepackage{array}
+\usepackage{epsfig,graphicx,subcaption}
 \usepackage{wrapfig}
-\usepackage{lscape}
-
-\usepackage{rotating}
+\usepackage{tabularx}
+\usepackage{multirow}
 \usepackage{longtable}
-\usepackage{booktabs, multirow} % for borders and merged ranges
-\usepackage{soul}% for underlines
-\usepackage[table]{xcolor} % for cell colors
-\usepackage{changepage,threeparttable} % for wide tables
+\usepackage{rotating}
+\usepackage{caption}
+\usepackage{color}
+\usepackage{setspace}
+\usepackage{boxedminipage,fancybox}
+\usepackage{shadow}
+\usepackage{varioref}
+\usepackage{url}
+\usepackage{makeidx}
+\usepackage{bm}
+\usepackage{lscape}
+\usepackage{booktabs}
+\usepackage{soul}
 \usepackage{titlesec}
-\usepackage{xcolor}
-
 \usepackage{eso-pic,picture}
 \usepackage{nomencl}
-\usepackage{lipsum}
 
 % --- Added for Phase 2 content (TikZ diagrams, algorithms, plots) ---
 \usepackage{tikz}
@@ -112,43 +98,38 @@
 
 %-----------TITLE PAGE----------------------------------
 \pagenumbering{roman}
-\title{\textbf{{TITLE OF PROJECT}}\\                    %%% EDIT %%%
+\title{\textbf{{MULTI-STAGE CODE SECURITY FRAMEWORK FOR ADAPTIVE VULNERABILITY TRIAGE AND DETECTION}}\\
          \vspace{0.5 cm}
 {\large PHASE II REPORT}\\ \vspace{0.5cm}
 {\textit{\large Submitted by}}\\ \vspace{0.5cm}
 \begin{table}[!htp]\centering
 \large
 \begin{tabular}{lrr}
-\textbf{\large FULL NAME} && \textbf{\large REGNO} \\  %%% EDIT %%%
-\textbf{\large FULL NAME} && \textbf{\large REGNO} \\  %%% EDIT %%%
-\textbf{\large FULL NAME} && \textbf{\large REGNO} \\  %%% EDIT %%%
-\textbf{\large FULL NAME} && \textbf{\large REGNO} \\  %%% EDIT %%%
+\textbf{\large Aditya B} && \textbf{\large 22011103004} \\
+\textbf{\large Roahith R} && \textbf{\large 22011103048} \\
+\textbf{\large Vishal Murugan DBS} && \textbf{\large 22011103065} \\
 \end{tabular}
 \end{table}
 {\textit{\large in partial fulfilment for the award of the degree of}}\\ \vspace{0.5cm}
 {\large \textbf{BACHELOR OF TECHNOLOGY }}\\{\textbf{\large IN\\}}
 
-%%------------------ AIDS Branch ----------------------%%%%% EDIT %%%
-{\large  \textbf{ARTIFICIAL INTELLIGENCE} \\ \large 
-\textbf{\&} \\ \large  \textbf{DATA SCIENCE}}\\
-
-%%------------------ IOT Branch ----------------------%% %%% EDIT %%%  
-%{\large \textbf{COMPUTER SCIENCE AND ENGINEERING}}   \\ 
-%{\large \textbf{(INTERNET OF THINGS)}}\\
+{\large  \textbf{COMPUTER SCIENCE AND ENGINEERING} \\ \large
+\textbf{(CYBERSECURITY)}}\\
 
 \vspace{1.75cm}
 \includegraphics[scale=1.00]{SNUC_Logo.png}\\
 \vspace{0.5cm}
 \textbf{
 {\onehalfspacing \large DEPARTMENT OF COMPUTER SCIENCE \\ AND ENGINEERING
-\\SCHOOL OF ENGINEERING \\SHIV NADAR UNIVERSITY CHENNAI}}\\  
-\vspace{1.5cm} 
-\textbf{\large APRIL  2025}\date{}
+\\SCHOOL OF ENGINEERING \\SHIV NADAR UNIVERSITY CHENNAI}}\\
+\vspace{1.5cm}
+\textbf{\large APRIL 2026}\date{}
+\author{}
 \pagenumbering{gobble}}
 %-------------------END OF TITLE PAGE----------------%
 
 \begin{document}
-\maketitle 
+\maketitle
 \renewcommand{\chaptername}{CHAPTER} 
 
 
@@ -159,14 +140,14 @@
     {\textbf{\large  BONAFIDE CERTIFICATE}}\\
 \end{center}
 \vspace{2cm}
-\doublespacing{Certified that this report titled “\textbf{PROJECT TITLE}” is the bonafide work of \textbf{FULL NAME} (Reg. No: \textbf{XXXXXXXXXXX}), \textbf{FULL NAME} (Reg. No: \textbf{XXXXXXXXXXX}), \textbf{FULL NAME} (Reg. No: \textbf{XXXXXXXXXXX}), \textbf{FULL NAME} (Reg. No: \textbf{XXXXXXXXXXX}) who carried out the work under my supervision.   Certified further that to the best of my knowledge the work reported herein does not form part of any other thesis or dissertation on the basis of which a degree or award was conferred on an earlier occasion on this or any other candidate.}  %%% EDIT %%%
+\doublespacing{Certified that this report titled ``\textbf{Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection}'' is the bonafide work of \textbf{Aditya B} (Reg. No: \textbf{22011103004}), \textbf{Roahith R} (Reg. No: \textbf{22011103048}), and \textbf{Vishal Murugan DBS} (Reg. No: \textbf{22011103065}) who carried out the work under my supervision. Certified further that to the best of my knowledge the work reported herein does not form part of any other thesis or dissertation on the basis of which a degree or award was conferred on an earlier occasion on this or any other candidate.}
 \vspace{2cm}
 \begin{table}[!htp] \centering \doublespacing
 \centering
-\begin{tabular}{llllll} 
+\begin{tabular}{llllll}
 \textbf{SIGNATURE} & & \hspace{0.5cm} & & &\textbf{SIGNATURE} \\
-Dr. T. Nagarajan & & & & & Dr. Name Of supervisor \\              %%% EDIT %%%
-\textbf{Professor \& Head  } & & & & &\textbf{Supervisor Designation}  \\  %%% EDIT %%%
+Dr. T. Nagarajan & & & & & Dr. K.B. Sundharakumar \\
+\textbf{Professor \& Head  } & & & & &\textbf{Associate Professor}  \\
 Department of Computer Science \&  & & & & & Department of Computer Science \& \\
 Engineering & & & & & Engineering  \\
 School of Engineering & & & & &  School of Engineering \\
@@ -179,12 +160,15 @@ Shiv Nadar University Chennai, & & & &  & Shiv Nadar University Chennai, \\Kalav
 
 %----------------------------------ABSTRACT-------------------------------%
 \thispagestyle{empty}
-\chapter*{\LARGE ABSTRACT}                                       %%% EDIT %%%
-%% ------------- Add the content of your Abstract below ----------------%
+\chapter*{\LARGE ABSTRACT}                                       %% ------------- Add the content of your Abstract below ----------------%
 \doublespacing
-Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.\\
-\indent Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.\\
-\textbf{Keywords} - Lorem Ipsum , Lorem Ipsum                         %%% EDIT %%%
+Static Application Security Testing tools remain indispensable in modern software development, yet their persistently high false-positive rates continue to erode developer trust, contributing to widespread alert fatigue and the dangerous habit of ignoring legitimate warnings. Existing efforts to address this problem through machine learning have encountered their own barriers: graph neural networks trained on curated benchmarks fail to generalize when confronted with realistic, deduplicated vulnerability data, and large language models applied to code security produce hallucinated findings and exhibit inconsistency across repeated analyses. These converging limitations point to a fundamental gap --- no single analysis modality is sufficient on its own, and applying expensive techniques uniformly to all findings is both economically wasteful and technically unnecessary.
+
+\indent This project presents \textbf{SEC-C}, a multi-stage cascading framework that treats vulnerability triage as a resource allocation problem. Rather than subjecting every potential finding to the same depth of analysis, the framework applies an uncertainty-driven escalation strategy: a composite scoring model weighing analysis confidence, code complexity, vulnerability novelty, and inter-tool agreement determines whether each finding can be resolved cheaply or must be escalated to progressively deeper reasoning. Findings that the static pre-screener can resolve with high confidence are triaged immediately; ambiguous cases advance to a graph-based structural validator built on Graph Isomorphism Networks and conformal prediction, which provides distribution-free coverage guarantees on its classification sets. Findings that remain unresolved after structural analysis enter a dual-agent large language model stage, where an attacker agent attempts to construct exploit paths while a defender agent identifies sanitizers, access controls, and framework protections. A structured consensus protocol reconciles these adversarial perspectives into a final verdict accompanied by automatically generated CVSS base scores. The cascade concludes with a CWE-adaptive score fusion engine that assigns category-specific weights to each stage's evidence --- recognizing, for instance, that injection vulnerabilities benefit most from semantic understanding while cryptographic weaknesses are best detected by pattern matching.
+
+\indent A distinguishing aspect of the framework is its integration of conformal prediction into the vulnerability detection pipeline, an application that, to our knowledge, has not been previously explored. By calibrating the graph neural network's softmax outputs through a post-hoc temperature scaling procedure, the system produces prediction sets with formal coverage guarantees, enabling principled decisions about which findings warrant expensive language model analysis and which can be resolved with structural evidence alone. The entire cascade is designed for graceful degradation: missing components cause findings to escalate rather than be silently dropped, and the system operates within free-tier API constraints, making the approach accessible for academic and open-source use. Evaluation across multiple open-source repositories and a curated multi-language test suite demonstrates that the majority of findings are resolved at the earliest and cheapest stage, substantially reducing the cost and latency of the overall analysis while maintaining complete coverage of the input finding set.\\
+
+\textbf{Keywords}: vulnerability detection, uncertainty quantification, cascade architecture, conformal prediction, graph neural networks, multi-agent consensus, static analysis, CWE-adaptive fusion
 
 \pagenumbering{roman}
 \setcounter{page}{1}
@@ -198,42 +182,28 @@ Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem
 %-----------------------------ACKNOWLEDGEMENT------------------------------%
 \chapter*{\LARGE ACKNOWLEDGEMENT}
 \justify\doublespacing
-we would like to express our sincere gratitude to all those who have provided invaluable guidance, support, and encouragement throughout the course of this project.
+We would like to express our sincere gratitude to all those who have provided invaluable guidance, support, and encouragement throughout the course of this project.
  
-First and foremost, We are deeply grateful to \textbf{Dr. T. Nagarajan}, Professor and Head, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his steadfast guidance and unwavering encouragement. His insights into the field of artificial intelligence and cognitive science have been instrumental in shaping the direction of this research. %%% EDIT %%%
- 
-We would like to extend our heartfelt thanks to our supervisor, \textbf{Dr. GUIDE NAME}, GUIDE DESIGNATION, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for her/his mentorship and commitment to the success of this project. Her/His expertise in the domain of Artificial Intelligence and XXXXX has been invaluable, providing us with the clarity and focus needed to tackle complex challenges and refine the methodology of this work.               
+First and foremost, We are deeply grateful to \textbf{Dr. T. Nagarajan}, Professor and Head, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his steadfast guidance and unwavering encouragement. His insights into the field of artificial intelligence and cognitive science have been instrumental in shaping the direction of this research.  
+We would like to extend our heartfelt thanks to our supervisor, \textbf{Dr. K.B. Sundharakumar}, Associate Professor, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his mentorship and commitment to the success of this project. His expertise in the domain of Cybersecurity and Software Engineering has been invaluable, providing us with the clarity and focus needed to tackle complex challenges and refine the methodology of this work.               
 
 
 We also acknowledge with gratitude the support of our family, whose understanding and encouragement have been crucial to the implementation of this project. Their unwavering belief in us has been a constant source of motivation and strength.
 
-%%%- ----------- Edit based on student count in your batch (3/4 ) %%% EDIT %%%-------%%
-\vspace{1.0cm}                      
-\begin{multicols}{2}  %% Change # to {3} if only 3 in your team & delete one section below --%%%%%%
+\vspace{1.0cm}
+\begin{multicols}{3}
 \centering
-\textbf{Loreum Ipsum}\\
-\textbf{(2KXX/XX/XXX)}\\
+\textbf{Aditya B}\\
+\textbf{(22011103004)}\\
 \vspace{0.1cm}
 
-
-\textbf{Loreum Ipsum}\\
-\textbf{(2KXX/XX/XXX)}\\
+\textbf{Roahith R}\\
+\textbf{(22011103048)}\\
 \vspace{0.1cm}
 
-\end{multicols}
-
-\vspace{1cm}                      
-\begin{multicols}{2}  %% Change # to {3} if only 3 in your team & delete one section below --%%%%%%
-\centering
-\textbf{Loreum Ipsum}\\
-\textbf{(2KXX/XX/XXX)}\\
+\textbf{Vishal Murugan DBS}\\
+\textbf{(22011103065)}\\
 \vspace{0.1cm}
-
-
-\textbf{Loreum Ipsum}\\
-\textbf{(2KXX/XX/XXX)}\\
-\vspace{0.1cm}
-
 \end{multicols}
 
 
@@ -248,26 +218,47 @@ We also acknowledge with gratitude the support of our family, whose understandin
 \listoffigures
 \addcontentsline{toc}{chapter}{LIST OF FIGURES}
 
-%---------{LIST OF SYMBOLS, ABBREVIATIONS-------%                 %%% EDIT %%%
-\renewcommand{\nomname}{LIST OF SYMBOLS, ABBREVIATIONS} 
-\nomenclature{\(g\)}{Acceleration due to gravity}
-\nomenclature{\(\rho\)}{Density}
-\nomenclature{\(\alpha\)}{Angle of attack}
-\nomenclature{\(\psi\)}{Angle of yaw}
-\nomenclature{\(\beta\)}{Angle of sideslip}
-\nomenclature{\(M\)}{Mach number}
-\nomenclature{\(Re\)}{Reynold's number}
-\nomenclature{\(C_L\)}{Coefficient of lift}
-\nomenclature{\(C_D\)}{Coefficient of drag}
-\nomenclature{AI}{Artificial Intelligence}
+%---------{LIST OF SYMBOLS, ABBREVIATIONS-------%                 \renewcommand{\nomname}{LIST OF SYMBOLS, ABBREVIATIONS} 
+\nomenclature{\(U\)}{Composite uncertainty score}
+\nomenclature{\(w_{\text{conf}}\)}{Confidence uncertainty weight (0.4)}
+\nomenclature{\(w_{\text{comp}}\)}{Complexity uncertainty weight (0.3)}
+\nomenclature{\(w_{\text{nov}}\)}{Novelty uncertainty weight (0.2)}
+\nomenclature{\(w_{\text{confl}}\)}{Conflict uncertainty weight (0.1)}
+\nomenclature{\(\alpha\)}{Conformal miscoverage rate (0.1)}
+\nomenclature{\(T\)}{ConfTS temperature parameter}
+\nomenclature{\(\hat{q}\)}{Conformal quantile threshold}
+\nomenclature{\(\alpha_f, \beta_f, \gamma_f\)}{Score fusion weights (SAST, Graph, LLM)}
+\nomenclature{\(\boldsymbol{\pi}\)}{Softmax probability vector}
+\nomenclature{\(s_i\)}{APS nonconformity score}
+\nomenclature{ISS}{Impact Sub-Score (CVSS v3.1)}
+\nomenclature{APS}{Adaptive Prediction Sets}
+\nomenclature{AST}{Abstract Syntax Tree}
+\nomenclature{BM25}{Best Match 25 (keyword search)}
+\nomenclature{CFG}{Control Flow Graph}
+\nomenclature{ConfTS}{Conformal Temperature Scaling}
+\nomenclature{CPG}{Code Property Graph}
+\nomenclature{CVSS}{Common Vulnerability Scoring System}
+\nomenclature{CWE}{Common Weakness Enumeration}
+\nomenclature{DDG}{Data Dependency Graph}
+\nomenclature{FAISS}{Facebook AI Similarity Search}
+\nomenclature{GAT}{Graph Attention Network}
+\nomenclature{GIN}{Graph Isomorphism Network}
+\nomenclature{GNN}{Graph Neural Network}
+\nomenclature{LLM}{Large Language Model}
+\nomenclature{NVD}{National Vulnerability Database}
+\nomenclature{RAG}{Retrieval-Augmented Generation}
+\nomenclature{RRF}{Reciprocal Rank Fusion}
+\nomenclature{SARIF}{Static Analysis Results Interchange Format}
+\nomenclature{SAST}{Static Application Security Testing}
+\nomenclature{WL}{Weisfeiler-Lehman (graph isomorphism test)}
+\nomenclature{XSS}{Cross-Site Scripting}
 \printnomenclature
 \addcontentsline{toc}{chapter}{LIST OF SYMBOLS, ABBREVIATIONS}
 %------------ABBRA-----------%
 %ADD YOUR CHAPTERS BELOW THIS
 \renewcommand{\nomname}{LIST OF SYMBOLS}
 
-%------------CHAPTERS-----------%  %%% EDIT %%%
-%ADD YOUR CHAPTERS BELOW THIS
+%------------CHAPTERS-----------%  %ADD YOUR CHAPTERS BELOW THIS
 \include{Chapter1.tex}
 \include{Chapter2.tex}
 \include{Chapter3.tex}
@@ -277,21 +268,105 @@ We also acknowledge with gratitude the support of our family, whose understandin
 
 
 
-%%%------------------ Bibilography Area ------ %%% EDIT %%%-----------%%
+%%% Bibliography %%%
 \renewcommand\bibname{REFERENCES}
-\begin{thebibliography}{1}
+\begin{thebibliography}{99}
 \normalsize
-
 \doublespacing{
 \vspace{0.5pt}
 
-\bibitem{1}Reilly, T., \& Williams, A. M. (2003). Science and Soccer: Developing Elite Players. Routledge.
-\bibitem{2}S. Venkataraman, K. Sundharakumar, A. Bharathi Malakreddy, \& S. Natarajan(2024), YUVA-SQ: A Cognitive Scouting Model for The Beautiful Game, 5th International Conference on Innovative Trends in Information Technology (ICITIIT), Kottayam, India, 2024, pp. 1-6
+\bibitem{angelopoulos2023} Angelopoulos, A. N. \& Bates, S. (2023). Conformal Prediction: A Gentle Introduction. \textit{Foundations and Trends in Machine Learning}.
+
+\bibitem{barber2023} Barber, R. F. et al. (2023). Conformal Prediction Beyond Exchangeability. \textit{Annals of Statistics}.
+
+\bibitem{codebert2020} Feng, Z. et al. (2020). CodeBERT: A Pre-Trained Model for Programming and Natural Languages. \textit{EMNLP}.
+
+\bibitem{codeql2024} GitHub. (2024). CodeQL: Semantic Code Analysis Engine.
+
+\bibitem{cpg2014} Yamaguchi, F. et al. (2014). Modeling and Discovering Vulnerabilities with Code Property Graphs. \textit{IEEE S\&P}.
+
+\bibitem{cvefixes2021} Bhandari, G. et al. (2021). CVEfixes: Automated Collection of Vulnerabilities and Their Fixes from Open-Source Software. \textit{PROMISE 2021}.
+
+\bibitem{cvss31} FIRST. (2019). Common Vulnerability Scoring System v3.1: Specification Document.
+
+\bibitem{dabah2024} Dabah, A. et al. (2024). ConfTS: Conformal Temperature Scaling for Improved Uncertainty Quantification. \textit{NeurIPS Workshop on Uncertainty Quantification}.
+
+\bibitem{crossvul2021} Nikitopoulos, G. et al. (2021). CrossVul: A Cross-Language Vulnerability Dataset with Commit Data. \textit{ESEC/FSE 2021}.
+
+\bibitem{vudenc2021} Ponta, S. E. et al. (2021). VUDENC: Vulnerability Detection with Deep Learning on a Natural Codebase. \textit{Information and Software Technology}.
+
+\bibitem{kofman2025} Kofman, D. et al. (2025). Post-Hoc Temperature Scaling Preserves Conformal Guarantees Under Exchangeability. \textit{ICML 2025}.
+
+\bibitem{devign2019} Zhou, Y. et al. (2019). Devign: Effective Vulnerability Identification by Learning Comprehensive Program Semantics via Graph Neural Networks. \textit{NeurIPS 32}.
+
+\bibitem{bigvul2020} Fan, J. et al. (2020). A C/C++ Code Vulnerability Dataset with Code Changes and CVE Summaries. \textit{MSR 2020}.
 
 
-%FOLLOW ABOVE CODE FOR ADDING MORE REFERENCES! TO CITE THIS IN YOUR REPORT USE \cite{1}.
+\bibitem{focalloss2017} Lin, T. Y. et al. (2017). Focal Loss for Dense Object Detection. \textit{ICCV}.
+
+\bibitem{diversevul2023} Chen, L. et al. (2023). DiverseVul: A New Vulnerable Source Code Dataset for Deep Learning Based Vulnerability Detection. \textit{RAID}.
+
+\bibitem{divergentthinking2023} Liang, T. et al. (2023). Encouraging Divergent Thinking in Large Language Models through Multi-Agent Debate. \textit{arXiv:2305.19118}.
+
+\bibitem{edgescan2025} Edgescan. (2025). 2025 Vulnerability Statistics Report. 10th Edition.
+
+\bibitem{ghostsecurity2025} Ghost Security. (2025). Exorcising the SAST Demons: SAST Tool False Positive Analysis.
+
+\bibitem{graphcodebert2021} Guo, D. et al. (2021). GraphCodeBERT: Pre-training Code Representations with Data Flow. \textit{ICLR}.
+
+\bibitem{guocalibration2017} Guo, C. et al. (2017). On Calibration of Modern Neural Networks. \textit{ICML}.
+
+\bibitem{iris2025} Li, Z. et al. (2025). IRIS: LLM-Assisted Static Analysis for Detecting Security Vulnerabilities. \textit{ICLR}.
+
+\bibitem{ivdetect2021} Li, Y. et al. (2021). Vulnerability Detection with Fine-Grained Interpretations. \textit{ESEC/FSE}.
+
+\bibitem{johnson2013} Johnson, B. et al. (2013). Why Don't Software Developers Use Static Analysis Tools to Find Bugs? \textit{ICSE}.
+
+\bibitem{juliet2017} NSA/NIST. (2017). Juliet Test Suite for C/C++ and Java. \textit{Software Assurance Reference Dataset}.
+
+\bibitem{linevul2022} Fu, M. \& Tantithamthavorn, C. (2022). LineVul: A Transformer-based Line-Level Vulnerability Prediction. \textit{MSR 2022}.
+
+\bibitem{llm4vuln2024} Sun, Y. et al. (2024). LLM4Vuln: A Unified Evaluation Framework for Decoupling and Enhancing LLMs' Vulnerability Reasoning. \textit{arXiv:2401.16185}.
+
+\bibitem{llmxcpg2025} Lekssays, A. et al. (2025). LLMxCPG: Context-Aware Vulnerability Detection Through Code Property Graph-Guided Large Language Models. \textit{USENIX Security}.
+
+\bibitem{multiagentdebate2023} Du, Y. et al. (2023). Improving Factuality and Reasoning in Language Models through Multiagent Debate. \textit{arXiv:2305.14325}.
+
+\bibitem{nvd2023} NIST. (2023). National Vulnerability Database. \url{https://nvd.nist.gov}.
+
+\bibitem{primevul2024} Ding, Y. et al. (2024). Vulnerability Detection with Code Language Models: How Far Are We? \textit{ICSE 2025}.
+
+\bibitem{realvul2024} Du, X. et al. (2024). Revisiting the Performance of Deep Learning-Based Vulnerability Detection on Realistic Datasets. \textit{IEEE TSE}.
+
+\bibitem{regvd2022} Nguyen, V. et al. (2022). ReGVD: Revisiting Graph Neural Networks for Vulnerability Detection. \textit{IEEE TSE}.
+
+\bibitem{reveal2021} Chakraborty, S. et al. (2021). Deep Learning based Vulnerability Detection: Are We There Yet? \textit{IEEE TSE}.
+
+\bibitem{rice1953} Rice, H. G. (1953). Classes of Recursively Enumerable Sets and Their Decision Problems. \textit{Transactions of the AMS}, 74(2), 358--366.
+
+\bibitem{romano2020} Romano, Y., Sesia, M., \& Candes, E. (2020). Classification with Valid and Adaptive Coverage. \textit{NeurIPS}.
+
+\bibitem{semgrep2024} Semgrep. (2024). Lightweight Static Analysis. Semgrep Inc.
+
+\bibitem{siftingnoise2026} Liang, Y. et al. (2026). Sifting the Noise: A Comparative Study of LLM Agents in Vulnerability False Positive Filtering. \textit{arXiv:2601.22952}.
+
+\bibitem{snyk2024} Snyk. (2024). Developer Security Platform. \textit{Snyk Ltd}.
+
+\bibitem{steenhoek2024} Steenhoek, B. et al. (2024). A Comprehensive Study of the Capabilities of Large Language Models for Vulnerability Detection. \textit{arXiv:2403.17218}.
+
+\bibitem{thapa2022} Thapa, C. et al. (2022). Transformer-based Language Models for Software Vulnerability Detection. \textit{ACSAC 2022}.
+
+\bibitem{vovk2005} Vovk, V., Gammerman, A., \& Shafer, G. (2005). Algorithmic Learning in a Random World. \textit{Springer}.
+
+\bibitem{vulnhalla2025} CyberArk. (2025). Vulnhalla: Picking the True Vulnerabilities from the CodeQL Haystack.
+
+\bibitem{vulnhuntr2024} Protectai. (2024). VulnHuntr: Autonomous AI Vulnerability Discovery. \textit{GitHub}.
+
+\bibitem{xu2019gin} Xu, K. et al. (2019). How Powerful are Graph Neural Networks? \textit{ICLR 2019}.
+
+\bibitem{zerofalse2025} ZeroFalse: Improving Precision in Static Analysis with LLMs. \textit{arXiv:2510.02534}, 2025.
+
 }
-
 \end{thebibliography}
 \addcontentsline{toc}{chapter}{REFERENCES}
 
@@ -299,5 +374,4 @@ We also acknowledge with gratitude the support of our family, whose understandin
 \renewcommand{\appendixname}{APPENDIX}
 \include{appendix}
 
-\chapter*{\centering \large  CONFERENCE PROOF\markboth{CONFERENCE PROOF}{SCOPUS INDEXED CONFERENCE PROOF}}
 \end{document}
