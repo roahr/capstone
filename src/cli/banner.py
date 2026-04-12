@@ -25,8 +25,7 @@ BANNER_ART = r"""
 
 BANNER_TEXT = (
     "[bold cyan]" + BANNER_ART + "[/bold cyan]"
-    "[bold white]   Multi-Stage Code Security Framework[/bold white]\n"
-    "[dim]   Adaptive Vulnerability Triage & Detection[/dim]\n"
+    "[bold white]   Multi-Stage Code Security Framework For Adaptive Vulnerability Triage & Detection[/bold white]\n"
     f"[dim]   v{VERSION}  |  5 Languages  |  4-Stage Cascade[/dim]"
 )
 

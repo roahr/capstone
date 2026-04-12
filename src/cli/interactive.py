@@ -24,8 +24,10 @@ from prompt_toolkit.completion import (
     PathCompleter,
     merge_completers,
 )
+from prompt_toolkit.filters import has_completions
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.styles import Style
 from rich.console import Console
 from rich.panel import Panel
@@ -79,41 +81,45 @@ class SecCCompleter(Completer):
             ),
         )
 
+    # Commands that take a path argument
+    PATH_COMMANDS = {"scan", "quick", "deep", "report"}
+
     def get_completions(self, document, complete_event):
-        text = document.text_before_cursor.strip()
+        text = document.text_before_cursor
         words = text.split()
 
+        # Nothing typed or typing the first word
         if not words or (len(words) == 1 and not text.endswith(" ")):
-            # Complete commands
-            word = words[0] if words else ""
+            typed = words[0] if words else ""
             for cmd, desc in self.commands.items():
-                if cmd.startswith(word):
-                    yield Completion(
-                        cmd,
-                        start_position=-len(word),
-                        display_meta=desc,
-                    )
-        elif words[0] in ("scan", "quick", "deep", "report") and (
-            len(words) >= 2 or text.endswith(" ")
-        ):
-            # Complete file paths after scan/report command
-            # Get the path portion
-            if text.endswith(" "):
-                path_text = ""
-            else:
-                path_text = words[-1]
+                if cmd.startswith(typed):
+                    yield Completion(cmd, start_position=-len(typed), display_meta=desc)
+            return
 
-            # Check if it's a flag
-            if path_text.startswith("--"):
-                flags = ["--stage", "--languages", "--output", "--dashboard", "--verbose"]
-                for flag in flags:
-                    if flag.startswith(path_text):
-                        yield Completion(flag, start_position=-len(path_text))
+        # First word is complete (space after it). Identify the command.
+        first_cmd = words[0].lstrip("/").lower()
+
+        # Only path-taking commands get file/flag completions
+        if first_cmd not in self.PATH_COMMANDS:
+            return
+
+        # User typed command + space but hasn't started the argument yet
+        if len(words) == 1 and text.endswith(" "):
+            # Don't dump all files — wait for user to start typing
+            return
+
+        # User is typing an argument (second+ word)
+        if len(words) >= 2:
+            partial = words[-1]
+            if partial.startswith("--"):
+                for flag in ("--stage", "--languages", "--output", "--verbose", "--console"):
+                    if flag.startswith(partial):
+                        yield Completion(flag, start_position=-len(partial))
             else:
-                # Use path completer
                 from prompt_toolkit.document import Document
-                sub_doc = Document(path_text)
-                yield from self.path_completer.get_completions(sub_doc, complete_event)
+                yield from self.path_completer.get_completions(
+                    Document(partial), complete_event
+                )
 
 
 def get_prompt_message() -> HTML:
@@ -365,13 +371,13 @@ def print_version() -> None:
     console.print()
 
 
-async def run_interactive_scan(
+def run_interactive_scan(
     args: list[str],
     stage_override: str | None = None,
     verbose_override: bool | None = None,
     session: Any = None,
 ) -> None:
-    """Parse scan arguments and run the cascade with live progress.
+    """Run a scan from the REPL. Uses real ScanDisplay for live stage output.
 
     Supports both smart shorthand and legacy flags:
       /scan <path>              Full cascade
@@ -380,7 +386,6 @@ async def run_interactive_scan(
       /quick <path>             Same as /scan <path> sast
       /deep <path>              Same as /scan <path> --verbose
     """
-    from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TimeElapsedColumn
 
     # Parse args — smart mode + legacy flags
     target = None
@@ -434,59 +439,19 @@ async def run_interactive_scan(
             console.print("[red]  Error: Provide a local path to scan.[/red]")
             return
 
-    # Show scan start
-    from src.cli.banner import print_scan_start
-    lang_list = languages.split(",") if languages else []
-    print_scan_start(target, lang_list, stage)
+    # Validate target exists
+    if not Path(target).exists():
+        console.print(f"  [red]Error: Path not found:[/red] {target}")
+        return
 
-    # Run with progress
-    with Progress(
-        SpinnerColumn("dots"),
-        TextColumn("[bold]{task.description}"),
-        BarColumn(bar_width=30),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        TimeElapsedColumn(),
-        console=console,
-    ) as progress:
-        overall = progress.add_task("[cyan]SEC-C Cascade", total=100)
-
-        # Stage 1: SAST
-        progress.update(overall, description="[green]> Stage 1: SAST Analysis")
-        sast_task = progress.add_task("[green]  CodeQL + Tree-sitter", total=100)
-        for j in range(0, 101, 10):
-            progress.update(sast_task, completed=j)
-            import asyncio
-            await asyncio.sleep(0.05)
-        progress.update(overall, completed=40)
-
-        if stage in ("graph", "llm"):
-            progress.update(overall, description="[cyan]* Stage 2: Graph Validation")
-            graph_task = progress.add_task("[cyan]  CPG + Mini-GAT + Conformal", total=100)
-            for j in range(0, 101, 10):
-                progress.update(graph_task, completed=j)
-                await asyncio.sleep(0.05)
-            progress.update(overall, completed=70)
-
-        if stage == "llm":
-            progress.update(overall, description="[yellow]@ Stage 3: LLM Dual-Agent")
-            llm_task = progress.add_task("[yellow]  Attacker <-> Defender", total=100)
-            for j in range(0, 101, 10):
-                progress.update(llm_task, completed=j)
-                await asyncio.sleep(0.05)
-            progress.update(overall, completed=100)
-
-        progress.update(overall, description="[bold green]OK Scan Complete")
-
-    console.print()
-
-    # Run actual scan
+    # Run the actual scan — ScanDisplay handles real-time stage output
+    import asyncio
     from src.cli.main import load_config, _init_modules
     from src.orchestrator.pipeline import PipelineOrchestrator
+    from src.reporting.scan_display import ScanDisplay
     from src.sast.sarif.schema import Language
 
     config = load_config()
-    orchestrator = PipelineOrchestrator(config)
-    _init_modules(orchestrator, config, stage)
 
     lang_list_enum = None
     if languages:
@@ -497,11 +462,16 @@ async def run_interactive_scan(
             except ValueError:
                 pass
 
-    result = await orchestrator.scan(
+    display = ScanDisplay(quiet=False)
+    orchestrator = PipelineOrchestrator(config)
+    orchestrator.set_display(display)
+    _init_modules(orchestrator, config, stage)
+
+    result = asyncio.run(orchestrator.scan(
         target=target,
         languages=lang_list_enum,
         max_stage=stage,
-    )
+    ))
 
     # Display results
     from src.reporting.console_reporter import ConsoleReporter
@@ -515,41 +485,73 @@ async def run_interactive_scan(
         sarif_reporter.write(result, output)
         console.print(f"\n  [green]OK[/green] SARIF saved to [bold]{output}[/bold]")
 
-    # Post-scan action menu
+    # Post-scan action menu — loop until Enter
     if result.total_findings > 0 and session:
         # Pre-generate dashboard so 'd' is instant
         from src.reporting.html_reporter import HTMLReporter
         html_reporter = HTMLReporter(auto_open=False)
         dashboard_path = html_reporter.generate(result)
 
+        # Prepare SARIF save path (in scan target directory)
+        from datetime import datetime as _dt
+        timestamp = _dt.now().strftime("%Y%m%d_%H%M%S")
+        target_name = Path(target).name or "scan"
+        target_dir = Path(target) if Path(target).is_dir() else Path(target).parent
+        sarif_path = str(target_dir / f"sec-c_{target_name}_{timestamp}.sarif")
+
         console.print()
-        console.print(
-            "  [bold cyan][d][/bold cyan] Open Dashboard    "
-            "[bold cyan][s][/bold cyan] Save SARIF    "
-            "[bold cyan][r][/bold cyan] Re-scan (SAST)    "
-            "[dim][Enter] Done[/dim]"
-        )
+        menu = Text()
+        menu.append("  d", style="bold cyan")
+        menu.append(" Dashboard  ", style="white")
+        menu.append("s", style="bold cyan")
+        menu.append(" Save SARIF  ", style="white")
+        menu.append("r", style="bold cyan")
+        menu.append(" Re-scan (SAST)  ", style="white")
+        menu.append("Enter", style="bold")
+        menu.append(" Done", style="white")
+        console.print(menu)
 
-        try:
-            choice = session.prompt("  > ", default="").strip().lower()
-        except (EOFError, KeyboardInterrupt):
-            choice = ""
+        sarif_saved = False
+        dashboard_opened = False
 
-        if choice == "d":
-            import webbrowser
-            webbrowser.open(str(Path(dashboard_path).resolve().as_uri()))
-            console.print(f"  [green]OK[/green] Dashboard opened")
-        elif choice == "s":
-            default_name = "sec-c-report.sarif"
+        while True:
             try:
-                save_path = session.prompt(f"  Save to [{default_name}]: ", default=default_name).strip()
-            except (EOFError, KeyboardInterrupt):
-                save_path = default_name
-            from src.reporting.sarif_reporter import SARIFReporter
-            SARIFReporter(config.get("reporting", {}).get("sarif", {})).write(result, save_path or default_name)
-            console.print(f"  [green]OK[/green] Saved to [bold]{save_path or default_name}[/bold]")
-        elif choice == "r":
-            await run_interactive_scan([target], stage_override="sast", session=session)
+                import msvcrt
+                ch = msvcrt.getwch()
+            except (ImportError, AttributeError):
+                import sys as _sys
+                import tty
+                import termios
+                fd = _sys.stdin.fileno()
+                old = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(fd)
+                    ch = _sys.stdin.read(1)
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+            ch = ch.lower()
+
+            if ch in ("\r", "\n"):
+                console.print()
+                break
+            elif ch == "d" and not dashboard_opened:
+                import webbrowser
+                webbrowser.open(str(Path(dashboard_path).resolve().as_uri()))
+                console.print(f"  [green]OK[/green] Dashboard opened: [bold]{dashboard_path}[/bold]")
+                dashboard_opened = True
+            elif ch == "s" and not sarif_saved:
+                from src.reporting.sarif_reporter import SARIFReporter
+                SARIFReporter(config.get("reporting", {}).get("sarif", {})).write(result, sarif_path)
+                console.print(f"  [green]OK[/green] SARIF saved: [bold]{sarif_path}[/bold]")
+                sarif_saved = True
+            elif ch == "r":
+                console.print()
+                run_interactive_scan([target], stage_override="sast", session=session)
+                break
+            elif ch == "\x1b" or ch == "q":
+                console.print()
+                break
 
 
 def run_interactive() -> None:
@@ -561,12 +563,21 @@ def run_interactive() -> None:
     history_dir.mkdir(exist_ok=True)
     history_file = history_dir / "history"
 
+    # Custom key bindings: Enter accepts completion without submitting
+    bindings = KeyBindings()
+
+    @bindings.add("enter", filter=has_completions)
+    def accept_completion(event):
+        """When completion menu is visible, Enter fills the selection — does NOT submit."""
+        event.current_buffer.complete_state = None
+
     session: PromptSession = PromptSession(
         history=FileHistory(str(history_file)),
         auto_suggest=AutoSuggestFromHistory(),
         completer=SecCCompleter(),
         style=PROMPT_STYLE,
         complete_while_typing=True,
+        key_bindings=bindings,
     )
 
     console.print("  [dim]Type /help for commands, Tab for autocomplete[/dim]")
@@ -588,67 +599,100 @@ def run_interactive() -> None:
         if cmd.startswith("/"):
             cmd = cmd[1:]
 
-        if cmd in ("exit", "quit"):
+        try:
+            _dispatch_command(cmd, parts, session)
+        except SystemExit:
             console.print("  [dim]Goodbye![/dim]")
             break
-        elif cmd == "clear":
-            import os
-            os.system("cls" if os.name == "nt" else "clear")
-            from src.cli.banner import print_mini_banner
-            print_mini_banner(console)
-        elif cmd == "help":
-            print_help()
-        elif cmd == "status":
-            print_status()
-        elif cmd == "config":
-            from src.cli.main import load_config
-            import json
-            config = load_config()
-            console.print_json(json.dumps(config, indent=2, default=str))
-        elif cmd == "scan":
-            import asyncio
-            asyncio.run(run_interactive_scan(parts[1:], session=session))
-        elif cmd == "quick":
-            import asyncio
-            asyncio.run(run_interactive_scan(parts[1:], stage_override="sast", session=session))
-        elif cmd == "deep":
-            import asyncio
-            asyncio.run(run_interactive_scan(parts[1:], stage_override="llm", verbose_override=True, session=session))
-        elif cmd == "report":
-            if len(parts) < 2:
-                console.print("[red]  Usage: report <file.sarif>[/red]")
-            else:
-                import json as _json
-                from pathlib import Path as _Path
-                sarif_path = parts[1]
-                if not _Path(sarif_path).exists():
-                    console.print(f"[red]  Error: File not found: {sarif_path}[/red]")
-                else:
-                    try:
-                        from src.sast.sarif.parser import SARIFParser
-                        from src.sast.sarif.schema import ScanResult
-                        parser = SARIFParser()
-                        findings = parser.parse_file(sarif_path)
-                        result = ScanResult(findings=findings, scan_target=sarif_path)
-                        # Check for --console flag
-                        if "--console" in parts:
-                            from src.reporting.console_reporter import ConsoleReporter
-                            ConsoleReporter(verbose=True).report(result)
-                        else:
-                            # Default: open dashboard
-                            from src.reporting.html_reporter import HTMLReporter
-                            reporter = HTMLReporter(auto_open=True)
-                            path = reporter.generate(result)
-                            console.print(f"  [green]OK[/green] Dashboard opened: [bold cyan]{path}[/bold cyan]")
-                    except (_json.JSONDecodeError, ValueError) as e:
-                        console.print(f"[red]  Error: Invalid SARIF file: {e}[/red]")
-        elif cmd == "providers":
-            print_providers()
-        elif cmd == "version":
-            print_version()
-        elif cmd == "history":
-            console.print("[dim]  Recent command history:[/dim]")
-            for item in list(session.history.get_strings())[-15:]:
-                console.print(f"    [green]>[/green] {item}")
+        except KeyboardInterrupt:
+            console.print()  # Clean line after Ctrl+C
+        except Exception as e:
+            console.print(f"  [red]Error:[/red] {e}")
+
+
+def _dispatch_command(cmd: str, parts: list[str], session) -> None:
+    """Dispatch a single REPL command. Exceptions propagate to the caller."""
+    if cmd in ("exit", "quit"):
+        raise SystemExit(0)
+    elif cmd == "clear":
+        import os
+        os.system("cls" if os.name == "nt" else "clear")
+        from src.cli.banner import print_mini_banner
+        print_mini_banner(console)
+    elif cmd == "help":
+        print_help()
+    elif cmd == "status":
+        print_status()
+    elif cmd == "config":
+        from src.cli.main import load_config
+        import json
+        config = load_config()
+        console.print_json(json.dumps(config, indent=2, default=str))
+    elif cmd in ("scan", "quick", "deep"):
+        overrides = {
+            "scan": {},
+            "quick": {"stage_override": "sast"},
+            "deep": {"stage_override": "llm", "verbose_override": True},
+        }
+        run_interactive_scan(parts[1:], session=session, **overrides[cmd])
+    elif cmd == "report":
+        _handle_report(parts, session)
+    elif cmd == "providers":
+        print_providers()
+    elif cmd == "version":
+        print_version()
+    elif cmd == "history":
+        console.print("[dim]  Recent command history:[/dim]")
+        for item in list(session.history.get_strings())[-15:]:
+            console.print(f"    [green]>[/green] {item}")
+    else:
+        console.print(f"  [dim]Unknown:[/dim] {cmd} [dim]— type /help for commands[/dim]")
+
+
+def _handle_report(parts: list[str], session) -> None:
+    """Handle the /report command with proper error handling."""
+    import json as _json
+
+    if len(parts) < 2:
+        # No file given — prompt for one
+        if session:
+            from prompt_toolkit.completion import PathCompleter as _PC
+            try:
+                sarif_path = session.prompt(
+                    "  SARIF file: ",
+                    completer=_PC(expanduser=True),
+                ).strip()
+            except (EOFError, KeyboardInterrupt):
+                return
+            if not sarif_path:
+                return
         else:
-            console.print(f"  [dim]Unknown:[/dim] {cmd} [dim]— type /help for commands[/dim]")
+            console.print("  [dim]Usage: /report <file.sarif>[/dim]")
+            return
+    else:
+        sarif_path = parts[1]
+
+    if not Path(sarif_path).exists():
+        console.print(f"  [red]Error: File not found:[/red] {sarif_path}")
+        return
+
+    try:
+        from src.sast.sarif.parser import SARIFParser
+        from src.sast.sarif.schema import ScanResult
+        parser = SARIFParser()
+        findings = parser.parse_file(sarif_path)
+        result = ScanResult(findings=findings, scan_target=sarif_path)
+    except (_json.JSONDecodeError, ValueError) as e:
+        console.print(f"  [red]Error: Invalid SARIF file:[/red] {e}")
+        return
+
+    # Check for --console flag
+    if "--console" in parts:
+        from src.reporting.console_reporter import ConsoleReporter
+        ConsoleReporter(verbose=True).report(result)
+    else:
+        # Default: open dashboard
+        from src.reporting.html_reporter import HTMLReporter
+        reporter = HTMLReporter(auto_open=True)
+        path = reporter.generate(result)
+        console.print(f"  [green]OK[/green] Dashboard opened: [bold cyan]{path}[/bold cyan]")

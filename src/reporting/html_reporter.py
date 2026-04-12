@@ -322,7 +322,7 @@ class HTMLReporter:
             self._render_header(result, risk_level, risk_color, risk_narrative),
             self._render_metrics(
                 total, confirmed, likely, potential, safe_count,
-                result.cascade_efficiency,
+                result.cascade_efficiency, result=result,
             ),
             self._render_timeline(result),
             self._render_pipeline(result, total),
@@ -377,8 +377,6 @@ class HTMLReporter:
         langs = ", ".join(lang.value for lang in result.languages_detected) or "N/A"
         duration_s = result.scan_duration_ms / 1000
 
-        risk_gauge = self._render_risk_gauge(risk_level, risk_color)
-
         return f"""
 <section class="report-header" id="summary">
     <div class="header-top">
@@ -387,9 +385,6 @@ class HTMLReporter:
                 <h1>Sec-C</h1>
                 <p class="framework-name">Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection</p>
             </div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-            {risk_gauge}
         </div>
     </div>
     <p class="risk-narrative">{risk_narrative}</p>
@@ -425,8 +420,16 @@ class HTMLReporter:
         potential: int,
         safe_count: int,
         efficiency: float,
+        result: ScanResult | None = None,
     ) -> str:
         eff_pct = int(efficiency * 100)
+        # LLM Calls Saved: findings resolved without LLM
+        llm_saved = 0
+        if result is not None:
+            llm_saved = int(
+                (result.resolved_at_sast + result.resolved_at_graph)
+                / max(total, 1) * 100
+            )
         return f"""
 <div class="metrics-grid">
     <div class="metric-card">
@@ -450,9 +453,10 @@ class HTMLReporter:
         <div class="metric-label">Potential</div>
     </div>
     <div class="metric-card">
-        <div class="metric-icon">{self._icon('check-circle', 22, '#22c55e')}</div>
-        <div class="metric-value" style="color:#22c55e" data-target="{safe_count}">0</div>
-        <div class="metric-label">False Positives Filtered</div>
+        <div class="metric-icon">{self._icon('shield-check', 22, '#22c55e')}</div>
+        <div class="metric-value" style="color:#22c55e"
+            data-target="{llm_saved}" data-suffix="%">0</div>
+        <div class="metric-label">LLM Calls Saved</div>
     </div>
     <div class="metric-card">
         <div class="metric-icon">{self._icon('trending-up', 22, '#818cf8')}</div>
@@ -908,27 +912,27 @@ class HTMLReporter:
 @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 :root {
-    --bg-body: #0f1419;
-    --bg-primary: #151b23;
-    --bg-secondary: #1c2333;
-    --bg-tertiary: #242d3d;
-    --bg-hover: #2a3548;
-    --text-primary: #e2e8f0;
-    --text-secondary: #94a3b8;
-    --text-muted: #64748b;
-    --accent: #38bdf8;
-    --accent-sec: #818cf8;
-    --red: #ef4444;
-    --orange: #f97316;
-    --yellow: #eab308;
-    --blue: #3b82f6;
-    --green: #22c55e;
-    --purple: #a78bfa;
-    --border: #2d3748;
-    --border-lt: #374151;
-    --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
-    --shadow-md: 0 4px 12px rgba(0,0,0,0.4);
-    --shadow-lg: 0 8px 24px rgba(0,0,0,0.5);
+    --bg-body: #121212;
+    --bg-primary: #1a1d24;
+    --bg-secondary: #22262e;
+    --bg-tertiary: #2a2f38;
+    --bg-hover: #32383f;
+    --text-primary: #c9ced8;
+    --text-secondary: #8b929b;
+    --text-muted: #6e7681;
+    --accent: #5e6ad2;
+    --accent-sec: #0085ff;
+    --red: #e5484d;
+    --orange: #f76808;
+    --yellow: #f5a623;
+    --blue: #0085ff;
+    --green: #30a46c;
+    --purple: #7c66dc;
+    --border: #2b3039;
+    --border-lt: #373e47;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.5);
+    --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
+    --shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
     --radius-sm: 6px;
     --radius-md: 8px;
     --radius-lg: 12px;
@@ -939,29 +943,13 @@ html { scroll-behavior: smooth; scroll-padding-top: 56px; }
 
 body {
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    background-color: #0a0e17;
-    background-image: radial-gradient(circle, rgba(56, 189, 248, 0.06) 1px, transparent 1px);
-    background-size: 30px 30px;
-    animation: gridDrift 60s linear infinite;
+    background: var(--bg-body);
     color: var(--text-primary);
     line-height: 1.6;
-    font-size: 15px;
+    font-size: 14px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
-@keyframes gridDrift {
-    0% { background-position: 0 0; }
-    100% { background-position: 30px 30px; }
-}
-
-/* ---- Scan-line sweep ---- */
-body::after {
-    content: '';
-    position: fixed;
-    top: 0; left: 0; right: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, #38bdf8, transparent);
-    animation: scanLine 2s ease-out forwards;
     z-index: 9999;
     pointer-events: none;
 }
@@ -972,8 +960,8 @@ body::after {
 
 /* ---- Accent bar ---- */
 .accent-bar {
-    height: 3px;
-    background: linear-gradient(90deg, #38bdf8, #818cf8, #a78bfa);
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-sec));
 }
 
 /* ---- Navigation ---- */
@@ -981,15 +969,13 @@ body::after {
     position: sticky;
     top: 0;
     z-index: 50;
-    background: rgba(15,20,25,0.92);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: var(--bg-body);
     border-bottom: 1px solid var(--border);
     padding: 0 32px;
     display: flex;
     align-items: center;
     gap: 32px;
-    height: 48px;
+    height: 46px;
 }
 .nav-brand {
     display: flex;
@@ -1074,12 +1060,12 @@ body::after {
     font-weight: 800;
     letter-spacing: 3px;
     text-transform: uppercase;
-    background: linear-gradient(135deg, #38bdf8, #818cf8);
+    background: linear-gradient(135deg, var(--accent), var(--purple));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
     line-height: 1.2;
-    text-shadow: 0 0 30px rgba(56,189,248,0.15);
+    text-shadow: none;
 }
 .framework-name {
     font-family: 'Inter', sans-serif;
@@ -1139,34 +1125,32 @@ body::after {
     margin-bottom: 24px;
 }
 .metric-card {
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(56, 189, 248, 0.12);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    padding: 20px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+    padding: 22px 20px;
     text-align: center;
-    transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 .metric-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-    border-color: rgba(56, 189, 248, 0.3);
+    border-color: var(--border-lt);
+    box-shadow: var(--shadow-md);
 }
 .metric-icon { margin-bottom: 8px; }
 .metric-icon svg { display: inline-block; }
 .metric-value {
-    font-family: 'Orbitron', sans-serif;
-    font-size: 2.25rem;
-    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 2.2rem;
+    font-weight: 700;
     line-height: 1.1;
     color: var(--text-primary);
     font-variant-numeric: tabular-nums;
+    letter-spacing: -0.5px;
 }
 .metric-label {
     color: var(--text-secondary);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.8px;
     margin-top: 6px;
@@ -1174,12 +1158,10 @@ body::after {
 
 /* ---- Section cards ---- */
 .section-card {
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(56, 189, 248, 0.12);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
     padding: 28px;
     margin-bottom: 24px;
 }
@@ -1277,12 +1259,10 @@ body::after {
     margin-bottom: 24px;
 }
 .chart-card {
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(56, 189, 248, 0.12);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
     padding: 22px;
 }
 .chart-title {
@@ -1449,12 +1429,13 @@ tbody tr:last-child td { border-bottom: none; }
 /* ---- Badges ---- */
 .badge {
     display: inline-block;
-    padding: 2px 9px;
-    border-radius: 10px;
-    font-size: 0.7rem;
-    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    font-weight: 500;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
+    letter-spacing: 0.5px;
     white-space: nowrap;
 }
 .badge-critical { background: rgba(239,68,68,0.15); color: var(--red); }
@@ -1506,12 +1487,10 @@ tbody tr:last-child td { border-bottom: none; }
 /* ---- Methodology ---- */
 .methodology-grid { display: grid; gap: 18px; margin-bottom: 28px; }
 .method-card {
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(56, 189, 248, 0.12);
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
     overflow: hidden;
 }
 .method-header {

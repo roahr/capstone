@@ -38,6 +38,7 @@ class SASTEngine:
             self.config.get("uncertainty", {})
         )
         self._codeql_available = shutil.which("codeql") is not None
+        self.last_scan_metadata: dict[str, Any] = {}
 
     async def analyze(
         self,
@@ -53,24 +54,45 @@ class SASTEngine:
         3. Merge and deduplicate findings
         4. Compute uncertainty scores
         """
-        all_findings: list[Finding] = []
+        import time as _time
 
+        all_findings: list[Finding] = []
         target_path = Path(target) if target else None
 
         # ── Step 1: Tree-sitter pre-screening ─────────────────────────────
+        ts_files = 0
+        ts_findings_count = 0
+        ts_start = _time.monotonic()
+
         if target_path and target_path.exists():
             logger.info("Running Tree-sitter pre-screening on %s", target)
+            if target_path.is_file():
+                ts_files = 1
+            elif target_path.is_dir():
+                exts = {'.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.c', '.cpp', '.h', '.go'}
+                ts_files = sum(1 for p in target_path.rglob("*") if p.suffix in exts and p.is_file())
             ts_findings = self._run_treesitter(target_path)
+            ts_findings_count = len(ts_findings)
             all_findings.extend(ts_findings)
-            logger.info("Tree-sitter found %d potential findings", len(ts_findings))
+            logger.info("Tree-sitter found %d potential findings", ts_findings_count)
+
+        ts_time_ms = (_time.monotonic() - ts_start) * 1000
 
         # ── Step 2: CodeQL analysis (optional) ────────────────────────────
+        codeql_findings_count = 0
+        codeql_corroborated = 0
+        codeql_db_time = 0.0
+
         if self._codeql_available and target_path and target_path.exists():
             logger.info("Running CodeQL analysis...")
+            cq_start = _time.monotonic()
             codeql_findings = await self._run_codeql(target_path, languages)
-            # Merge: add CodeQL findings that aren't duplicates of tree-sitter ones
+            codeql_db_time = _time.monotonic() - cq_start
+            codeql_findings_count = len(codeql_findings)
+            pre_merge = len(all_findings)
             merged = self._merge_findings(all_findings, codeql_findings)
             all_findings = merged
+            codeql_corroborated = pre_merge + codeql_findings_count - len(all_findings)
             logger.info("After CodeQL merge: %d total findings", len(all_findings))
         elif not self._codeql_available:
             logger.info("CodeQL not available, using Tree-sitter findings only")
@@ -84,6 +106,19 @@ class SASTEngine:
             len(all_findings),
             sum(1 for f in all_findings if f.uncertainty.should_escalate),
         )
+
+        # ── Store metadata for display ────────────────────────────────────
+        self.last_scan_metadata = {
+            "treesitter_files_scanned": ts_files,
+            "treesitter_findings": ts_findings_count,
+            "treesitter_time_ms": ts_time_ms,
+            "codeql_available": self._codeql_available,
+            "codeql_skip_reason": "CLI not found on PATH" if not self._codeql_available else "",
+            "codeql_db_time_s": codeql_db_time,
+            "codeql_query_suite": "security-extended",
+            "codeql_findings": codeql_findings_count,
+            "codeql_corroborated": codeql_corroborated,
+        }
 
         return all_findings
 

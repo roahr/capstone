@@ -536,7 +536,6 @@ class PipelineOrchestrator:
         cpg_count = 0
         total_sanitizer_cov = 0.0
         any_cp = False
-        any_gat = False
 
         for f in validated:
             gv = f.graph_validation
@@ -544,32 +543,31 @@ class PipelineOrchestrator:
                 continue
             cpg_count += 1
             total_sanitizer_cov += gv.sanitizer_coverage
-
             if gv.conformal_prediction_set:
                 any_cp = True
-            if gv.attention_weights:
-                any_gat = True
 
         meta["cpg_count"] = cpg_count
 
         if cpg_count > 0:
             avg_coverage = total_sanitizer_cov / cpg_count
-            # Slice reduction is complementary to sanitizer coverage
             meta["slice_reduction"] = avg_coverage * 100
 
-        if any_gat:
-            meta["gat_status"] = f"completed ({cpg_count} graphs analyzed)"
-        if any_cp:
-            meta["cp_status"] = f"completed ({cpg_count} predictions)"
-
-        # Check if graph validator exposes richer metadata
+        # Determine GNN status from the validator itself
         gv_obj = self._graph_validator
         if gv_obj is not None:
+            # Check if model is loaded (validator._available)
+            model_ready = getattr(gv_obj, "_available", False)
+            if model_ready:
+                meta["gat_status"] = f"completed ({cpg_count} graphs analyzed)"
+            # Check richer metadata from batch validation
             gv_meta = getattr(gv_obj, "last_validation_metadata", None)
             if isinstance(gv_meta, dict):
                 meta["slice_reduction"] = gv_meta.get("avg_slice_reduction_pct", meta["slice_reduction"])
                 meta["gat_status"] = gv_meta.get("gat_status", meta["gat_status"])
                 meta["cp_status"] = gv_meta.get("cp_status", meta["cp_status"])
+
+        if any_cp:
+            meta["cp_status"] = f"completed ({cpg_count} predictions)"
 
         return meta
 
@@ -583,10 +581,17 @@ class PipelineOrchestrator:
         # Detect languages from findings
         languages_detected = list({f.language for f in findings})
 
+        # Pull files scanned from SAST engine metadata
+        files_scanned = 0
+        if self._sast_engine is not None:
+            sast_meta = getattr(self._sast_engine, "last_scan_metadata", {})
+            files_scanned = sast_meta.get("treesitter_files_scanned", 0)
+
         result = ScanResult(
             findings=findings,
             scan_target=target,
             languages_detected=languages_detected,
+            total_files_scanned=files_scanned,
             scan_duration_ms=total_time,
             resolved_at_sast=self.stats.resolved_sast,
             resolved_at_graph=self.stats.resolved_graph,

@@ -77,14 +77,22 @@ def setup_logging(verbose: bool = False) -> None:
     )
 
     if not verbose:
-        # Silence chatty LLM internals in normal mode — the ScanDisplay
-        # handles user-facing output for Stage 3.
+        # Silence chatty internals in normal mode — ScanDisplay handles
+        # user-facing output for all stages.
         for quiet_mod in (
             "src.llm", "src.llm.api", "src.llm.agents",
             "src.llm.consensus", "src.llm.rag",
+            "src.graph", "src.graph.gnn", "src.graph.features",
             "httpx", "httpcore",
+            "transformers", "transformers.modeling_utils",
+            "huggingface_hub", "huggingface_hub.file_download",
         ):
-            logging.getLogger(quiet_mod).setLevel(logging.WARNING)
+            logging.getLogger(quiet_mod).setLevel(logging.ERROR)
+
+        # Suppress HuggingFace token warning and model load report
+        import os
+        os.environ.setdefault("HF_HUB_DISABLE_IMPLICIT_TOKEN", "1")
+        os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 
 
 def load_config(config_path: str | None = None) -> dict:
