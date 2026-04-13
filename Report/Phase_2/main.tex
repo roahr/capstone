@@ -12,21 +12,22 @@
 \usepackage{float}
 \usepackage{listings}
 \usepackage[table]{xcolor}
-\usepackage{amssymb,amsmath}
+\usepackage{amssymb}
 \usepackage{changepage,threeparttable}
-\usepackage[skip=10pt plus1pt, indent=40pt]{parskip}
+\usepackage[skip=6pt plus1pt, indent=40pt]{parskip}
 \usepackage{atbegshi}
 \AtBeginDocument{\AtBeginShipoutNext{\AtBeginShipoutDiscard}}
 \usepackage{array}
-\usepackage{epsfig,graphicx,subcaption}
+\usepackage{subcaption}
 \usepackage{wrapfig}
 \usepackage{tabularx}
 \usepackage{multirow}
 \usepackage{longtable}
 \usepackage{rotating}
 \usepackage{caption}
-\usepackage{color}
+% color already loaded via xcolor
 \usepackage{setspace}
+\setstretch{1.3}
 \usepackage{boxedminipage,fancybox}
 \usepackage{shadow}
 \usepackage{varioref}
@@ -99,9 +100,9 @@
 %-----------TITLE PAGE----------------------------------
 \pagenumbering{roman}
 \title{\textbf{{MULTI-STAGE CODE SECURITY FRAMEWORK FOR ADAPTIVE VULNERABILITY TRIAGE AND DETECTION}}\\
-         \vspace{0.5 cm}
-{\large PHASE II REPORT}\\ \vspace{0.5cm}
-{\textit{\large Submitted by}}\\ \vspace{0.5cm}
+         \vspace{0.3cm}
+{\large PHASE II REPORT}\\ \vspace{0.3cm}
+{\textit{\large Submitted by}}\\ \vspace{0.3cm}
 \begin{table}[!htp]\centering
 \large
 \begin{tabular}{lrr}
@@ -110,21 +111,21 @@
 \textbf{\large Vishal Murugan DBS} && \textbf{\large 22011103065} \\
 \end{tabular}
 \end{table}
-{\textit{\large in partial fulfilment for the award of the degree of}}\\ \vspace{0.5cm}
+\vspace{-0.3cm}
+{\textit{\large in partial fulfilment for the award of the degree of}}\\ \vspace{0.3cm}
 {\large \textbf{BACHELOR OF TECHNOLOGY }}\\{\textbf{\large IN\\}}
 
 {\large  \textbf{COMPUTER SCIENCE AND ENGINEERING} \\ \large
 \textbf{(CYBERSECURITY)}}\\
 
-\vspace{1.75cm}
-\includegraphics[scale=1.00]{SNUC_Logo.png}\\
-\vspace{0.5cm}
+\vspace{1.0cm}
+\includegraphics[scale=0.9]{SNUC_Logo.png}\\
+\vspace{0.3cm}
 \textbf{
 {\onehalfspacing \large DEPARTMENT OF COMPUTER SCIENCE \\ AND ENGINEERING
 \\SCHOOL OF ENGINEERING \\SHIV NADAR UNIVERSITY CHENNAI}}\\
-\vspace{1.5cm}
+\vspace{0.8cm}
 \textbf{\large APRIL 2026}\date{}
-\author{}
 \pagenumbering{gobble}}
 %-------------------END OF TITLE PAGE----------------%
 
@@ -160,15 +161,13 @@ Shiv Nadar University Chennai, & & & &  & Shiv Nadar University Chennai, \\Kalav
 
 %----------------------------------ABSTRACT-------------------------------%
 \thispagestyle{empty}
-\chapter*{\LARGE ABSTRACT}                                       %% ------------- Add the content of your Abstract below ----------------%
-\doublespacing
-Static Application Security Testing tools remain indispensable in modern software development, yet their persistently high false-positive rates continue to erode developer trust, contributing to widespread alert fatigue and the dangerous habit of ignoring legitimate warnings. Existing efforts to address this problem through machine learning have encountered their own barriers: graph neural networks trained on curated benchmarks fail to generalize when confronted with realistic, deduplicated vulnerability data, and large language models applied to code security produce hallucinated findings and exhibit inconsistency across repeated analyses. These converging limitations point to a fundamental gap --- no single analysis modality is sufficient on its own, and applying expensive techniques uniformly to all findings is both economically wasteful and technically unnecessary.
+\chapter*{\LARGE ABSTRACT}
+%% ------------- Add the content of your Abstract below ----------------%
+Static Application Security Testing tools traditionally suffer from high false-positive rates, leading to significant developer alert fatigue and disengagement. Machine learning approaches introduce their own limitations: graph neural networks trained on curated benchmarks fail to generalize to real-world codebases, while large language models hallucinate vulnerabilities and produce inconsistent verdicts. This project introduces the \textbf{Multi-Stage Code Security Framework for Adaptive Vulnerability Triage and Detection}, an uncertainty-driven hierarchical framework designed to address these critical limitations by treating vulnerability triage as a resource allocation problem.
 
-\indent This project presents \textbf{SEC-C}, a multi-stage cascading framework that treats vulnerability triage as a resource allocation problem. Rather than subjecting every potential finding to the same depth of analysis, the framework applies an uncertainty-driven escalation strategy: a composite scoring model weighing analysis confidence, code complexity, vulnerability novelty, and inter-tool agreement determines whether each finding can be resolved cheaply or must be escalated to progressively deeper reasoning. Findings that the static pre-screener can resolve with high confidence are triaged immediately; ambiguous cases advance to a graph-based structural validator built on Graph Isomorphism Networks and conformal prediction, which provides distribution-free coverage guarantees on its classification sets. Findings that remain unresolved after structural analysis enter a dual-agent large language model stage, where an attacker agent attempts to construct exploit paths while a defender agent identifies sanitizers, access controls, and framework protections. A structured consensus protocol reconciles these adversarial perspectives into a final verdict accompanied by automatically generated CVSS base scores. The cascade concludes with a CWE-adaptive score fusion engine that assigns category-specific weights to each stage's evidence --- recognizing, for instance, that injection vulnerabilities benefit most from semantic understanding while cryptographic weaknesses are best detected by pattern matching.
+\indent The framework employs a four-stage cascading architecture that progressively escalates only ambiguous findings to more expensive analysis modules. The cascade begins with lightweight syntactic pattern matching and interprocedural taint analysis, proceeds to Code Property Graph construction with Graph Isomorphism Network classification wrapped in conformal prediction sets, advances to a dual-agent large language model consensus protocol employing adversarial attacker and defender roles, and concludes with CWE-adaptive score fusion that produces weighted severity assessments. An uncertainty-driven escalation strategy resolves clear findings at the cheapest stage while routing genuinely ambiguous cases to deeper analysis.
 
-\indent A distinguishing aspect of the framework is its integration of conformal prediction into the vulnerability detection pipeline, an application that, to our knowledge, has not been previously explored. By calibrating the graph neural network's softmax outputs through a post-hoc temperature scaling procedure, the system produces prediction sets with formal coverage guarantees, enabling principled decisions about which findings warrant expensive language model analysis and which can be resolved with structural evidence alone. The entire cascade is designed for graceful degradation: missing components cause findings to escalate rather than be silently dropped, and the system operates within free-tier API constraints, making the approach accessible for academic and open-source use. Evaluation across multiple open-source repositories and a curated multi-language test suite demonstrates that the majority of findings are resolved at the earliest and cheapest stage, substantially reducing the cost and latency of the overall analysis while maintaining complete coverage of the input finding set.\\
-
-\textbf{Keywords}: vulnerability detection, uncertainty quantification, cascade architecture, conformal prediction, graph neural networks, multi-agent consensus, static analysis, CWE-adaptive fusion
+\indent A key innovation is the uncertainty quantification engine, which fuses analysis confidence, code complexity, pattern novelty, and inter-tool conflict factors to compute an adaptive escalation score for each potential finding. The conformal prediction layer provides formal coverage guarantees on graph-based classifications, replacing brittle point estimates with statistically rigorous prediction sets. The adversarial multi-agent validation replaces single-model inference with structured debate, reducing hallucination through independent reasoning chains. Together, these contributions establish a foundation for intelligent, cost-aware vulnerability triage.
 
 \pagenumbering{roman}
 \setcounter{page}{1}
@@ -183,10 +182,11 @@ Static Application Security Testing tools remain indispensable in modern softwar
 \chapter*{\LARGE ACKNOWLEDGEMENT}
 \justify\doublespacing
 We would like to express our sincere gratitude to all those who have provided invaluable guidance, support, and encouragement throughout the course of this project.
- 
-First and foremost, We are deeply grateful to \textbf{Dr. T. Nagarajan}, Professor and Head, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his steadfast guidance and unwavering encouragement. His insights into the field of artificial intelligence and cognitive science have been instrumental in shaping the direction of this research.  
-We would like to extend our heartfelt thanks to our supervisor, \textbf{Dr. K.B. Sundharakumar}, Associate Professor, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his mentorship and commitment to the success of this project. His expertise in the domain of Cybersecurity and Software Engineering has been invaluable, providing us with the clarity and focus needed to tackle complex challenges and refine the methodology of this work.               
 
+First and foremost, We are deeply grateful to \textbf{Dr. T. Nagarajan}, Professor and Head, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his steadfast guidance and unwavering encouragement. His insights into the fields of artificial intelligence and cybersecurity have been instrumental in shaping the direction of this research.
+
+\indent We would like to sincerely and gratefully extend our heartfelt thanks to our supervisor \newline
+\textbf{Dr. K.B. Sundharakumar}, Associate Professor, Department of Computer Science and Engineering, School of Engineering, Shiv Nadar University Chennai, for his mentorship and commitment to the success of this project. His expertise in the domains of cybersecurity and software engineering has been invaluable, providing us with the clarity and focus needed to tackle complex challenges and refine the methodology of this work.
 
 We also acknowledge with gratitude the support of our family, whose understanding and encouragement have been crucial to the implementation of this project. Their unwavering belief in us has been a constant source of motivation and strength.
 
@@ -197,13 +197,16 @@ We also acknowledge with gratitude the support of our family, whose understandin
 \textbf{(22011103004)}\\
 \vspace{0.1cm}
 
+
 \textbf{Roahith R}\\
 \textbf{(22011103048)}\\
 \vspace{0.1cm}
 
+
 \textbf{Vishal Murugan DBS}\\
 \textbf{(22011103065)}\\
 \vspace{0.1cm}
+
 \end{multicols}
 
 
@@ -220,38 +223,20 @@ We also acknowledge with gratitude the support of our family, whose understandin
 
 %---------{LIST OF SYMBOLS, ABBREVIATIONS-------%                 \renewcommand{\nomname}{LIST OF SYMBOLS, ABBREVIATIONS} 
 \nomenclature{\(U\)}{Composite uncertainty score}
-\nomenclature{\(w_{\text{conf}}\)}{Confidence uncertainty weight (0.4)}
-\nomenclature{\(w_{\text{comp}}\)}{Complexity uncertainty weight (0.3)}
-\nomenclature{\(w_{\text{nov}}\)}{Novelty uncertainty weight (0.2)}
-\nomenclature{\(w_{\text{confl}}\)}{Conflict uncertainty weight (0.1)}
 \nomenclature{\(\alpha\)}{Conformal miscoverage rate (0.1)}
-\nomenclature{\(T\)}{ConfTS temperature parameter}
-\nomenclature{\(\hat{q}\)}{Conformal quantile threshold}
 \nomenclature{\(\alpha_f, \beta_f, \gamma_f\)}{Score fusion weights (SAST, Graph, LLM)}
-\nomenclature{\(\boldsymbol{\pi}\)}{Softmax probability vector}
-\nomenclature{\(s_i\)}{APS nonconformity score}
-\nomenclature{ISS}{Impact Sub-Score (CVSS v3.1)}
 \nomenclature{APS}{Adaptive Prediction Sets}
 \nomenclature{AST}{Abstract Syntax Tree}
-\nomenclature{BM25}{Best Match 25 (keyword search)}
-\nomenclature{CFG}{Control Flow Graph}
-\nomenclature{ConfTS}{Conformal Temperature Scaling}
 \nomenclature{CPG}{Code Property Graph}
 \nomenclature{CVSS}{Common Vulnerability Scoring System}
 \nomenclature{CWE}{Common Weakness Enumeration}
-\nomenclature{DDG}{Data Dependency Graph}
 \nomenclature{FAISS}{Facebook AI Similarity Search}
 \nomenclature{GAT}{Graph Attention Network}
-\nomenclature{GIN}{Graph Isomorphism Network}
 \nomenclature{GNN}{Graph Neural Network}
 \nomenclature{LLM}{Large Language Model}
 \nomenclature{NVD}{National Vulnerability Database}
-\nomenclature{RAG}{Retrieval-Augmented Generation}
-\nomenclature{RRF}{Reciprocal Rank Fusion}
 \nomenclature{SARIF}{Static Analysis Results Interchange Format}
 \nomenclature{SAST}{Static Application Security Testing}
-\nomenclature{WL}{Weisfeiler-Lehman (graph isomorphism test)}
-\nomenclature{XSS}{Cross-Site Scripting}
 \printnomenclature
 \addcontentsline{toc}{chapter}{LIST OF SYMBOLS, ABBREVIATIONS}
 %------------ABBRA-----------%
@@ -270,16 +255,14 @@ We also acknowledge with gratitude the support of our family, whose understandin
 
 %%% Bibliography %%%
 \renewcommand\bibname{REFERENCES}
+\small
 \begin{thebibliography}{99}
-\normalsize
-\doublespacing{
+{
 \vspace{0.5pt}
 
 \bibitem{angelopoulos2023} Angelopoulos, A. N. \& Bates, S. (2023). Conformal Prediction: A Gentle Introduction. \textit{Foundations and Trends in Machine Learning}.
 
 \bibitem{barber2023} Barber, R. F. et al. (2023). Conformal Prediction Beyond Exchangeability. \textit{Annals of Statistics}.
-
-\bibitem{codebert2020} Feng, Z. et al. (2020). CodeBERT: A Pre-Trained Model for Programming and Natural Languages. \textit{EMNLP}.
 
 \bibitem{codeql2024} GitHub. (2024). CodeQL: Semantic Code Analysis Engine.
 
@@ -348,9 +331,7 @@ We also acknowledge with gratitude the support of our family, whose understandin
 
 \bibitem{semgrep2024} Semgrep. (2024). Lightweight Static Analysis. Semgrep Inc.
 
-\bibitem{siftingnoise2026} Liang, Y. et al. (2026). Sifting the Noise: A Comparative Study of LLM Agents in Vulnerability False Positive Filtering. \textit{arXiv:2601.22952}.
-
-\bibitem{snyk2024} Snyk. (2024). Developer Security Platform. \textit{Snyk Ltd}.
+\bibitem{siftingnoise2026} Liang, Y. et al. (2026). Sifting the Noise: A Comparative Study of LLM Agents in Vulnerability False Positive Filtering [Preprint]. \textit{arXiv:2601.22952}.
 
 \bibitem{steenhoek2024} Steenhoek, B. et al. (2024). A Comprehensive Study of the Capabilities of Large Language Models for Vulnerability Detection. \textit{arXiv:2403.17218}.
 
@@ -364,7 +345,7 @@ We also acknowledge with gratitude the support of our family, whose understandin
 
 \bibitem{xu2019gin} Xu, K. et al. (2019). How Powerful are Graph Neural Networks? \textit{ICLR 2019}.
 
-\bibitem{zerofalse2025} ZeroFalse: Improving Precision in Static Analysis with LLMs. \textit{arXiv:2510.02534}, 2025.
+\bibitem{zerofalse2025} Li, H. et al. (2025). ZeroFalse: Improving Precision in Static Analysis with LLMs. \textit{arXiv:2510.02534}.
 
 }
 \end{thebibliography}

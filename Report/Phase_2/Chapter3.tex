@@ -2,65 +2,21 @@
 % Page numbering handled by Chapter 1
 
 % ====================================================================
-% CHAPTER 3: METHODOLOGY
+% CHAPTER 3: METHODOLOGY (compressed)
 % ====================================================================
 
-The literature review in Chapter~2 exposed three structural gaps in current vulnerability detection research: (1)~static analysis tools produce false-positive rates exceeding 90\% because they lack semantic context \cite{ghostsecurity2025}, (2)~graph neural networks for vulnerability detection plateau at 63--65\% accuracy when trained on single-representation inputs \cite{devign2019}, and (3)~large language models hallucinate plausible but incorrect security verdicts when operating without grounding evidence \cite{primevul2024}. Each gap corresponds to a strength of a different analysis modality, which motivated us to design a multi-stage cascade that combines all three. This chapter specifies the four modules of the \texttt{sec-c} framework, the uncertainty-driven routing logic between them, and the formal guarantees that bind the stages together. Every design choice is justified by the trade-off it resolves, and every constant is traced to its implementation in the codebase.
+The literature review in Chapter~2 exposed four research gaps: (1)~static analysis tools produce false-positive rates exceeding 90\% without semantic context~\cite{ghostsecurity2025}, (2)~graph neural networks for vulnerability detection plateau at 63--65\% accuracy on single-representation inputs~\cite{devign2019}, (3)~large language models hallucinate incorrect security verdicts without grounding evidence~\cite{primevul2024}, and (4)~fixed fusion weights in hybrid systems ignore CWE-specific behavior, applying uniform combination strategies across vulnerability categories. Each gap corresponds to a strength of a different analysis modality. This chapter specifies the four modules of the proposed framework, the uncertainty-driven routing logic between them, and the formal guarantees that bind the stages together.
 
 % ====================================================================
 \section{\uppercase{System Overview}}
 \label{sec:system-overview}
 % ====================================================================
 
-\subsection{Cascade Philosophy}
-
-The central claim of this work is that vulnerability triage operates under a strict cost--accuracy trade-off: cheap analysis resolves easy cases, expensive analysis should be reserved for hard ones. We instantiate this principle as a four-stage cascade where each finding enters at the cheapest stage and escalates only when the current stage cannot resolve it with sufficient confidence.
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    stage/.style={draw, rounded corners, minimum width=3.5cm, minimum height=1.2cm, align=center, font=\small\bfseries},
-    arrow/.style={-{Stealth[length=3mm]}, thick},
-    resolved/.style={-{Stealth[length=3mm]}, thick, dashed, color=green!60!black},
-    escalated/.style={-{Stealth[length=3mm]}, thick, color=red!60!black},
-    label/.style={font=\footnotesize, midway, above},
-    pct/.style={font=\footnotesize\itshape, midway, below}
-]
-    \node[stage, fill=blue!15] (input) {Source Code\\Input};
-    \node[stage, fill=orange!20, right=2cm of input] (sast) {Stage 1\\SAST Pre-Screener};
-    \node[stage, fill=yellow!20, right=2cm of sast] (graph) {Stage 2\\Graph Validator};
-    \node[stage, fill=red!15, below=2cm of graph] (llm) {Stage 3\\LLM Dual-Agent};
-    \node[stage, fill=green!15, below=2cm of sast] (fusion) {Stage 4\\Score Fusion};
-    \node[stage, fill=purple!15, left=2cm of fusion] (report) {Final\\Report};
-
-    \draw[arrow] (input) -- (sast);
-    \draw[resolved] (sast) -- node[label] {Resolved} node[pct] {85\%} (fusion);
-    \draw[escalated] (sast) -- node[label] {Escalated} node[pct] {$U \geq 0.5$} (graph);
-    \draw[resolved] (graph) -- node[label, right] {Singleton} (fusion);
-    \draw[escalated] (graph) -- node[label] {Ambiguous} (llm);
-    \draw[arrow] (llm) -- node[label, left] {Validated} (fusion);
-    \draw[arrow] (fusion) -- (report);
-\end{tikzpicture}
-\caption{Four-stage cascade architecture with uncertainty-driven escalation. Findings are resolved at the cheapest possible stage; only ambiguous cases escalate to more expensive analysis.}
-\label{fig:cascade-arch}
-\end{figure}
-
-Stage~1 (\textbf{SAST Pre-Screening}) applies Tree-sitter pattern matching and CodeQL taint analysis. Each finding receives a four-factor uncertainty score $U$; those with $U < 0.5$ are resolved immediately. Stage~2 (\textbf{Graph-Augmented Validation}) builds a Joern Code Property Graph (CPG), backward-slices it, produces GraphCodeBERT embeddings concatenated with six structural features, and classifies via MiniGINv3---a three-layer Graph Isomorphism Network. A conformal prediction layer wraps the classifier: singleton prediction sets resolve; ambiguous sets escalate. Stage~3 (\textbf{LLM Dual-Agent Validation}) dispatches an Attacker agent (red team) and a Defender agent (blue team) via Gemini~2.5, fuses their verdicts through a five-rule consensus protocol, and computes CVSS~v3.1 scores. Stage~4 (\textbf{Score Fusion and Reporting}) applies CWE-adaptive weighted fusion and emits SARIF~2.1.0 output with an interactive HTML dashboard.
-
-\subsection{Design Principles}
-
-Three principles guided the architecture.
-
-\emph{Uncertainty-driven escalation} ensures that the routing decision between stages is principled rather than heuristic: findings escalate because their uncertainty exceeds a calibrated threshold, not because they match a hard-coded rule. Traditional multi-tool pipelines use severity-based routing (escalate all CRITICAL findings), which wastes expensive analysis on trivially confirmed critical findings and misses ambiguous medium-severity findings. Our four-factor uncertainty score captures aspects that severity alone cannot: taint-path complexity, CWE novelty, and inter-tool disagreement.
-
-\emph{Graceful degradation} means the pipeline continues to operate when optional tools are unavailable---if Joern is not installed, findings bypass Stage~2 and escalate directly to Stage~3; if no LLM API key is configured, findings remain at their current resolution. This principle is essential for practical adoption: a developer running \texttt{sec-c scan} on a laptop should receive useful output in seconds, while a CI/CD pipeline with full infrastructure should receive deeper analysis.
-
-\emph{Auditability} requires that every intermediate score, every routing decision, and every agent verdict is recorded in the \texttt{Finding} Pydantic model (defined in \texttt{src/sast/sarif/schema.py}), so the final SARIF report traces each finding's journey through the cascade. A security engineer reviewing a CONFIRMED finding can inspect the SAST confidence, the uncertainty breakdown, the conformal prediction set, the attacker's payload, the defender's sanitiser analysis, and the fused score---all from a single SARIF result object.
-
-Table~\ref{tab:stages} summarises the cost--accuracy profile of each stage.
+The framework instantiates a four-stage cascade where each finding enters at the cheapest stage and escalates only when the current stage cannot resolve it with sufficient confidence. Stage~1 (\textbf{SAST Pre-Screening}) applies Tree-sitter pattern matching and CodeQL taint analysis; each finding receives a four-factor uncertainty score $U$, and those with $U < 0.5$ resolve immediately. Stage~2 (\textbf{Graph-Augmented Validation}) builds a Joern Code Property Graph, backward-slices it, produces GraphCodeBERT embeddings concatenated with six structural features, and classifies via MiniGINv3; a conformal prediction layer wraps the classifier so that singleton prediction sets resolve while ambiguous sets escalate. Stage~3 (\textbf{LLM Dual-Agent Validation}) dispatches an Attacker agent and a Defender agent via Gemini~2.5, fuses their verdicts through a five-rule consensus protocol, and computes CVSS~v3.1 scores. Stage~4 (\textbf{Score Fusion and Reporting}) applies CWE-adaptive weighted fusion and emits SARIF~2.1.0 output with an interactive HTML dashboard. Table~\ref{tab:stages} summarizes the cost and resolution profile of each stage; Figure~\ref{fig:full-arch} provides a detailed view of data flow between all four modules.
 
 \begin{table}[H]
 \centering
+\small
 \caption{Stage comparison: latency, cost, and expected resolution rate.}
 \label{tab:stages}
 \begin{tabular}{llllr}
@@ -69,7 +25,7 @@ Table~\ref{tab:stages} summarises the cost--accuracy profile of each stage.
 \midrule
 1: SAST         & Tree-sitter + CodeQL & 100~ms + 5~min & CPU only      & 85\% \\
 2: Graph        & Joern + MiniGINv3    & 2--10~s/finding & CPU/GPU       & 2\% \\
-3: LLM          & Gemini 2.5 Flash     & 2--5~s/finding  & API tokens    & 13\% \\
+3: LLM          & LLM Provider     & 5--15~s/finding  & API tokens    & 13\% \\
 4: Fusion       & Weighted aggregation & $<$1~ms         & CPU only      & 100\% \\
 \bottomrule
 \end{tabular}
@@ -77,8 +33,41 @@ Table~\ref{tab:stages} summarises the cost--accuracy profile of each stage.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{Figures/full_architecture.png}
-\caption{Full system architecture of the \texttt{sec-c} framework showing data flow between all four modules.}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=0.5cm and 0.7cm,
+    every node/.style={font=\footnotesize},
+    stage/.style={draw, rounded corners=4pt, minimum height=1.1cm, minimum width=3cm, align=center, thick},
+    s1/.style={stage, fill=green!12},
+    s2/.style={stage, fill=orange!12},
+    s3/.style={stage, fill=red!10},
+    s4/.style={stage, fill=purple!12},
+    decision/.style={draw, diamond, aspect=2, fill=yellow!15, inner sep=1pt, font=\scriptsize, align=center},
+    arr/.style={-Stealth, thick, color=gray!70!black},
+]
+\node[s1] (sast) {\textbf{Stage 1: SAST}\\{\scriptsize Tree-sitter + CodeQL}\\{\scriptsize Uncertainty $U$}};
+\node[decision, right=0.7cm of sast] (d1) {$U \geq 0.5$?};
+\node[s2, right=0.7cm of d1] (graph) {\textbf{Stage 2: Graph}\\{\scriptsize MiniGINv3}\\{\scriptsize Conformal}};
+\node[decision, right=0.7cm of graph] (d2) {Ambiguous?};
+\node[s3, right=0.7cm of d2] (llm) {\textbf{Stage 3: LLM}\\{\scriptsize Dual-Agent}\\{\scriptsize Consensus}};
+\node[s4, right=0.7cm of llm] (fusion) {\textbf{Stage 4: Fusion}\\{\scriptsize CWE-adaptive}\\{\scriptsize SARIF}};
+\node[left=0.5cm of sast] (input) {Source Code};
+\node[below=0.6cm of d1, font=\scriptsize, text=green!40!black] (r1) {Resolved (85\%)};
+\node[below=0.6cm of d2, font=\scriptsize, text=green!40!black] (r2) {Resolved (2\%)};
+\draw[arr] (input) -- (sast);
+\draw[arr] (sast) -- (d1);
+\draw[arr] (d1) -- node[above, font=\scriptsize]{Yes} (graph);
+\draw[-Stealth, thick, dashed, color=green!50!black] (d1) -- (r1);
+\draw[arr] (graph) -- (d2);
+\draw[arr] (d2) -- node[above, font=\scriptsize]{Yes} (llm);
+\draw[-Stealth, thick, dashed, color=green!50!black] (d2) -- (r2);
+\draw[arr] (llm) -- (fusion);
+\node[above=0.08cm of sast, font=\scriptsize, text=gray] {$<$100\,ms};
+\node[above=0.08cm of graph, font=\scriptsize, text=gray] {2--10\,s};
+\node[above=0.08cm of llm, font=\scriptsize, text=gray] {5--15\,s};
+\end{tikzpicture}%
+}
+\caption{Four-stage cascade architecture with uncertainty-driven escalation. Findings enter at Stage~1 and escalate only when the current stage cannot resolve them. Dashed arrows indicate resolution; solid arrows indicate escalation.}
 \label{fig:full-arch}
 \end{figure}
 
@@ -87,107 +76,56 @@ Table~\ref{tab:stages} summarises the cost--accuracy profile of each stage.
 \label{sec:sast}
 % ====================================================================
 
-The first stage serves two purposes: it generates the initial set of candidate vulnerability findings, and it computes a principled uncertainty score that determines whether each finding can be resolved immediately or must be escalated. This is Contribution~C1: \emph{uncertainty-driven cascade routing}.
+The first stage generates initial candidate findings and computes a principled uncertainty score that determines whether each finding can be resolved immediately or must escalate (Contribution~C1).
 
-\subsection{Tree-sitter Pattern Matching}
+\subsection{Pre-Screening and Taint Analysis}
 
-Before invoking CodeQL (which requires database construction taking 1--5 minutes), we run a Tree-sitter pre-screening pass that completes in under 100~ms per file. The \texttt{TreeSitterScanner} parses the source into a concrete syntax tree and matches 24 vulnerability-indicative patterns across five languages (Python, JavaScript, Java, C/C++, Go). These patterns detect common anti-patterns---\texttt{eval()} on user input, \texttt{shell=True} in subprocess calls, SQL string concatenation, missing CSRF tokens---and produce findings with a baseline confidence of 0.6--0.8 (lower than CodeQL's taint-aware confidence of 0.8--0.95). Tree-sitter pre-screening ensures that even when CodeQL is unavailable, the pipeline has a non-empty set of findings to triage.
-
-\subsection{CodeQL Taint Analysis}
-
-For repositories where CodeQL databases can be constructed (or pre-built databases downloaded via \texttt{GITHUB\_TOKEN}), we run the \texttt{security-extended} query suite. CodeQL traces data flow from sources (user input, environment variables, file reads) through intermediate transformations to sinks (SQL queries, OS commands, HTML output), producing findings with full taint-flow paths. Each \texttt{TaintFlow} object records an ordered list of \texttt{TaintFlowStep} entries, each with a \texttt{Location} (file, line, column, snippet) and a \texttt{kind} label (\texttt{source}, \texttt{intermediate}, \texttt{sanitizer}, or \texttt{sink}). The taint-flow length and interprocedural depth feed directly into the uncertainty scorer.
+Before invoking CodeQL (database construction takes 1--5 minutes), a Tree-sitter pre-screening pass completes in under 100~ms per file. The scanner parses source into a concrete syntax tree and matches 24 vulnerability-indicative patterns across five languages (Python, JavaScript, Java, C/C++, Go), producing findings with baseline confidence of 0.6--0.8. When CodeQL databases are available, the \texttt{security-extended} query suite traces data flow from sources through transformations to sinks, producing findings with full taint-flow paths (confidence 0.8--0.95). Each \texttt{TaintFlow} object records ordered \texttt{TaintFlowStep} entries with \texttt{Location} and kind labels (\texttt{source}, \texttt{intermediate}, \texttt{sanitizer}, \texttt{sink}). The taint-flow length and interprocedural depth feed directly into the uncertainty scorer.
 
 \subsection{Four-Factor Uncertainty Scoring}
 
-We claim that a single confidence score from a SAST tool is insufficient for routing decisions. A finding might have high SAST confidence yet involve a 7-hop interprocedural taint path that the tool cannot fully verify. We therefore decompose uncertainty into four independent factors, implemented in the \texttt{UncertaintyScorer} class (\texttt{src/sast/uncertainty/scorer.py}).
-
-The composite uncertainty score is:
+A single SAST confidence score is insufficient for routing: a finding might have high confidence yet involve a 7-hop interprocedural taint path that the tool cannot fully verify. We decompose uncertainty into four independent factors:
 
 \begin{align}
 U = w_{\text{conf}} \cdot U_{\text{conf}} + w_{\text{comp}} \cdot U_{\text{comp}} + w_{\text{nov}} \cdot U_{\text{nov}} + w_{\text{confl}} \cdot U_{\text{confl}} + \delta_{\text{sev}}
 \label{eq:uncertainty}
 \end{align}
 
-\noindent where the weights are $w_{\text{conf}} = 0.4$, $w_{\text{comp}} = 0.3$, $w_{\text{nov}} = 0.2$, $w_{\text{confl}} = 0.1$, and $\delta_{\text{sev}}$ is a post-hoc severity adjustment. The result is clamped to $[0, 1]$.
-
-\textbf{Factor 1: Confidence Uncertainty} ($U_{\text{conf}}$). The inverse of the SAST tool's self-reported confidence: $U_{\text{conf}} = 1.0 - c_{\text{sast}}$, clamped to $[0,1]$. A tool reporting 90\% confidence yields $U_{\text{conf}} = 0.1$; a tool reporting no confidence yields $U_{\text{conf}} = 1.0$. This factor receives the highest weight (0.4) because SAST confidence is the most direct signal of detection reliability.
-
-\textbf{Factor 2: Complexity Uncertainty} ($U_{\text{comp}}$). Computed from two sub-signals averaged equally:
-\[
-U_{\text{comp}} = \frac{\text{hop\_score} + \text{depth\_score}}{2}
-\]
-where $\text{hop\_score} = \text{clamp}((l_{\text{taint}} - 1) / 4)$ with $l_{\text{taint}}$ the taint-flow length and the denominator set to $\texttt{MAX\_TAINT\_HOPS} - 1 = 4$, and $\text{depth\_score} = \text{clamp}(d_{\text{interproc}} / 5)$ with $d_{\text{interproc}}$ the interprocedural call depth. Longer taint paths and deeper call chains are harder for SAST tools to verify \cite{johnson2013}, so they increase uncertainty.
-
-\textbf{Factor 3: Novelty Uncertainty} ($U_{\text{nov}}$). A binary classification of the CWE pattern: 25 well-studied CWEs (SQL injection, XSS, buffer overflows, path traversal, etc.) receive $U_{\text{nov}} = 0.15$, rare CWEs receive $U_{\text{nov}} = 0.85$, and findings with no CWE identifier receive $U_{\text{nov}} = 1.0$. We chose a discrete rather than continuous mapping because SAST tool accuracy drops sharply outside the most common CWE categories---there is no smooth gradient.
-
-\textbf{Factor 4: Conflict Uncertainty} ($U_{\text{confl}}$). Measures inter-tool disagreement when multiple SAST tools flag the same location. If only one tool produced the finding, $U_{\text{confl}} = 0.0$. If multiple tools agree, $U_{\text{confl}} = 0.1$. Soft disagreement (e.g., one says ``likely'' and another says ``potential'') yields $U_{\text{confl}} = 0.5$. Hard disagreement (one says ``safe'', another says ``vulnerable'') yields $U_{\text{confl}} = 1.0$.
-
-Table~\ref{tab:uncertainty-factors} summarises the factors and their weights. Table~\ref{tab:severity-adj} shows the severity adjustments.
+\noindent where $w_{\text{conf}} = 0.4$, $w_{\text{comp}} = 0.3$, $w_{\text{nov}} = 0.2$, $w_{\text{confl}} = 0.1$, and $\delta_{\text{sev}}$ is a severity adjustment. The result is clamped to $[0, 1]$. The four factors are: (1)~$U_{\text{conf}} = 1 - c_{\text{sast}}$, the inverse of SAST confidence; (2)~$U_{\text{comp}} = (\text{hop\_score} + \text{depth\_score})/2$, where $\text{hop\_score} = \text{clamp}((l_{\text{taint}} - 1)/4)$ and $\text{depth\_score} = \text{clamp}(d_{\text{interproc}}/5)$; (3)~$U_{\text{nov}} \in \{0.15, 0.85, 1.0\}$, a discrete CWE rarity classification (25 common CWEs receive 0.15, rare CWEs receive 0.85, absent CWE receives 1.0); and (4)~$U_{\text{confl}} \in \{0.0, 0.1, 0.5, 1.0\}$, measuring inter-tool disagreement.
 
 \begin{table}[H]
 \centering
-\caption{Four uncertainty factors with weights and value ranges.}
+\small
+\caption{Uncertainty factors with weights, value ranges, and severity adjustments.}
 \label{tab:uncertainty-factors}
 \begin{tabular}{llcl}
 \toprule
-\textbf{Factor} & \textbf{Symbol} & \textbf{Weight} & \textbf{Range} \\
+\textbf{Factor} & \textbf{Symbol} & \textbf{Weight} & \textbf{Range / Value} \\
 \midrule
 Confidence  & $U_{\text{conf}}$  & 0.4 & $[0, 1]$: inverse of SAST confidence \\
 Complexity  & $U_{\text{comp}}$  & 0.3 & $[0, 1]$: avg of hop and depth scores \\
 Novelty     & $U_{\text{nov}}$   & 0.2 & $\{0.15, 0.85, 1.0\}$: CWE rarity \\
 Conflict    & $U_{\text{confl}}$ & 0.1 & $\{0.0, 0.1, 0.5, 1.0\}$: tool agreement \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{table}[H]
-\centering
-\caption{Post-hoc severity adjustments ($\delta_{\text{sev}}$) applied after the 4-factor weighted sum.}
-\label{tab:severity-adj}
-\begin{tabular}{lrl}
-\toprule
-\textbf{Severity} & \textbf{$\delta_{\text{sev}}$} & \textbf{Rationale} \\
 \midrule
-Critical & $+0.15$ & Must not be missed; force escalation \\
-High     & $+0.10$ & Lean toward deeper analysis \\
-Medium   & $\phantom{+}0.00$ & Neutral baseline \\
-Low      & $-0.05$ & Reduce noise from low-impact findings \\
+\multicolumn{4}{l}{\textbf{Severity Adjustment} ($\delta_{\text{sev}}$, applied post-hoc to the weighted sum)} \\
+\midrule
+\multicolumn{2}{l}{Critical} & $+0.15$ & Force escalation for high-impact findings \\
+\multicolumn{2}{l}{High}     & $+0.10$ & Lean toward deeper analysis \\
+\multicolumn{2}{l}{Medium}   & $\phantom{+}0.00$ & Neutral baseline \\
+\multicolumn{2}{l}{Low}      & $-0.05$ & Reduce noise from low-impact findings \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Algorithm~\ref{alg:uncertainty} formalises the scoring procedure.
-
-\begin{algorithm}[H]
-\caption{Four-Factor Uncertainty Scoring}
-\label{alg:uncertainty}
-\begin{algorithmic}[1]
-\Require Finding $f$ with fields: $c_{\text{sast}}$, $l_{\text{taint}}$, $d_{\text{interproc}}$, $\text{cwe\_id}$, severity, tool\_verdicts
-\Ensure $U \in [0, 1]$
-\State $U_{\text{conf}} \gets \text{clamp}(1.0 - c_{\text{sast}})$
-\State $\text{hop\_score} \gets \text{clamp}((l_{\text{taint}} - 1) / 4)$
-\State $\text{depth\_score} \gets \text{clamp}(d_{\text{interproc}} / 5)$
-\State $U_{\text{comp}} \gets (\text{hop\_score} + \text{depth\_score}) / 2$
-\If{$\text{cwe\_id} \in \text{COMMON\_CWE\_IDS}$ (25 entries)}
-    \State $U_{\text{nov}} \gets 0.15$
-\ElsIf{$\text{cwe\_id}$ is present}
-    \State $U_{\text{nov}} \gets 0.85$
-\Else
-    \State $U_{\text{nov}} \gets 1.0$
-\EndIf
-\State $U_{\text{confl}} \gets \Call{ConflictScore}{\text{tool\_verdicts}}$ \Comment{0.0/0.1/0.5/1.0}
-\State $\delta_{\text{sev}} \gets \text{SEVERITY\_ADJ}[\text{severity}]$ \Comment{+0.15/+0.10/0.00/$-$0.05}
-\State $U \gets \text{clamp}(0.4 \cdot U_{\text{conf}} + 0.3 \cdot U_{\text{comp}} + 0.2 \cdot U_{\text{nov}} + 0.1 \cdot U_{\text{confl}} + \delta_{\text{sev}})$
-\State \Return $U$
-\end{algorithmic}
-\end{algorithm}
+Pseudocode for all three algorithms (uncertainty scoring, APS calibration/inference, and consensus protocol) appears in the Appendix.
 
 \subsection{Escalation Routing}
 
-The \texttt{EscalationRouter} class (\texttt{src/sast/router.py}) applies four rules to determine whether a finding escalates from Stage~1 to Stage~2. A finding escalates if \emph{any} rule fires. Table~\ref{tab:routing-rules} enumerates these rules.
+The \texttt{EscalationRouter} applies four rules; a finding escalates if \emph{any} rule fires.
 
 \begin{table}[H]
 \centering
+\small
 \caption{SAST-to-Graph escalation rules. A finding escalates if any rule fires.}
 \label{tab:routing-rules}
 \begin{tabular}{clp{7cm}}
@@ -197,75 +135,31 @@ The \texttt{EscalationRouter} class (\texttt{src/sast/router.py}) applies four r
 R1 & $U \geq 0.5$ & High composite uncertainty; SAST alone is unreliable \\
 R2 & $l_{\text{taint}} > 3$ & Long taint paths exceed SAST verification capacity \\
 R3 & \texttt{is\_interprocedural} = True & Cross-file flows require structural analysis \\
-R4 & Interprocedural AND \texttt{CRITICAL} & Critical cross-file findings always escalate regardless of $U$ \\
+R4 & Interprocedural AND \texttt{CRITICAL} & Critical cross-file findings always escalate \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Findings that do not trigger any rule are resolved at Stage~1 with verdict \texttt{SAFE} and \texttt{stage\_resolved = SAST}. In evaluation across 15 repositories, 85\% of findings resolved at Stage~1, consistent with the observation that the majority of SAST findings are either true positives with high confidence or obvious false positives \cite{johnson2013}.
-
-For the Graph-to-LLM transition, the router applies a single rule: if the conformal prediction set is ambiguous (contains both ``safe'' and ``vulnerable''), the finding escalates. Singleton prediction sets (either \{``safe''\} or \{``vulnerable''\}) resolve at Stage~2 with the corresponding verdict.
+Findings that do not trigger any rule resolve at Stage~1 with verdict \texttt{SAFE}. In evaluation across 15 repositories, 85\% of findings resolved at Stage~1. For the Graph-to-LLM transition, the router applies a single rule: if the conformal prediction set is ambiguous (contains both ``safe'' and ``vulnerable''), the finding escalates; singleton sets resolve at Stage~2.
 
 % ====================================================================
 \section{\uppercase{Stage 2: Graph-Augmented Validation}}
 \label{sec:graph}
 % ====================================================================
 
-Stage~2 addresses a key limitation of SAST tools: they produce taint paths but cannot reason about the structural context surrounding those paths. A missing bounds check, an uncalled sanitiser, a dead-code branch---these structural properties require graph-level analysis. This section describes how we construct Code Property Graphs, slice them to reduce noise, extract features, classify with a graph neural network, and wrap the classifier in a conformal prediction layer that provides coverage guarantees. This constitutes Contribution~C2: \emph{conformal prediction for principled escalation}.
+Stage~2 addresses a key SAST limitation: taint paths lack structural context. A missing bounds check, an uncalled sanitizer, or a dead-code branch requires graph-level analysis. This section covers CPG construction, backward slicing, feature extraction, GNN classification, and the conformal prediction layer (Contribution~C2).
 
-\subsection{Code Property Graph Construction}
+\subsection{CPG Construction and Backward Slicing}
 
-We use Joern \cite{cpg2014} to generate Code Property Graphs that unify four program representations. The \texttt{JoernCPGBuilder} class (\texttt{src/graph/cpg/builder.py}) invokes \texttt{joern-parse} to produce a CPG binary and \texttt{joern-export} to convert it to GraphML, which is then parsed into a NetworkX \texttt{DiGraph}. Table~\ref{tab:cpg-types} enumerates the 14 node types and 6 edge types.
-
-\begin{table}[H]
-\centering
-\caption{CPG node types (14) and edge types (6) as defined in \texttt{builder.py}.}
-\label{tab:cpg-types}
-\begin{tabular}{ll}
-\toprule
-\textbf{Category} & \textbf{Types} \\
-\midrule
-Node types & \texttt{METHOD}, \texttt{METHOD\_RETURN}, \texttt{METHOD\_PARAMETER\_IN}, \\
-           & \texttt{METHOD\_PARAMETER\_OUT}, \texttt{BLOCK}, \texttt{CALL}, \texttt{IDENTIFIER}, \\
-           & \texttt{LITERAL}, \texttt{LOCAL}, \texttt{RETURN}, \texttt{CONTROL\_STRUCTURE}, \\
-           & \texttt{FIELD\_IDENTIFIER}, \texttt{TYPE\_REF}, \texttt{UNKNOWN} \\
-\midrule
-Edge types & \texttt{AST} (Abstract Syntax Tree), \texttt{CFG} (Control Flow Graph), \\
-           & \texttt{DDG} (Data Dependency Graph), \texttt{CDG} (Control Dependency Graph), \\
-           & \texttt{CALL} (inter-procedural call), \texttt{REACHING\_DEF} (reaching definitions) \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-The builder supports six languages: Python, JavaScript, Java, C, C++, and Go. When Joern is not available, the builder returns a minimal stub graph containing a single \texttt{METHOD} node, allowing downstream components to operate without errors (graceful degradation). Each node carries attributes for \texttt{id}, \texttt{type}, \texttt{code}, \texttt{lineNumber}, and \texttt{columnNumber}; each edge carries a \texttt{type} attribute.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{Figures/cpg_construction_pipeline.png}
-\caption{CPG construction pipeline: source code is parsed by Joern into a unified graph combining AST, CFG, DDG, and CDG edges.}
-\label{fig:cpg-pipeline}
-\end{figure}
-
-\subsection{Backward Slicing}
-
-Full CPGs for real-world codebases contain thousands of nodes, most of which are irrelevant to a specific vulnerability. We apply backward slicing \cite{cpg2014} from the finding's sink to extract only the security-relevant subgraph. The \texttt{BackwardSlicer} class (\texttt{src/graph/slicing/slicer.py}) performs BFS backward from the sink node along DDG, REACHING\_DEF, and CDG edges (and optionally CALL edges for inter-procedural analysis) up to a maximum depth of 10.
-
-After slicing, the algorithm expands the result by $\pm 5$ lines of AST context around each slice node, ensuring the extracted code remains readable for subsequent LLM analysis. Typical graph reduction is 67--91\%, consistent with LLMxCPG~\cite{llmxcpg2025}: a CPG with 2,000 nodes is sliced to 180--660 nodes, dramatically reducing the input size for the GNN and any downstream LLM prompts.
-
-We chose backward slicing over forward slicing because vulnerability detection is sink-driven: the security question is ``can untrusted data reach this dangerous operation?'', which requires tracing backward from the sink to potential sources. Forward slicing from a source would include all code that the source data \emph{might} affect, much of which is irrelevant to the specific sink under investigation.
-
-The slicer also locates the taint-flow source node (if identifiable from the finding's \texttt{TaintFlow}) and performs a shallow backward slice (depth~3) from the source, merging both slices. This captures the source's input-validation context without exploding the graph size. The merged slice is stored as a new \texttt{nx.DiGraph} with graph-level metadata (\texttt{sliced=True}, \texttt{finding\_id}) for downstream traceability.
+We use Joern~\cite{cpg2014} to generate Code Property Graphs that unify 14 node types and 6 edge types (Abstract Syntax Tree edges, Control Flow Graph edges, Data Dependency Graph (DDG) edges, Control Dependency Graph (CDG) edges, CALL edges, and REACHING\_DEF edges) across Python, JavaScript, Java, C, C++, and Go. When Joern is unavailable, the builder returns a minimal stub graph (graceful degradation). Full CPGs contain thousands of irrelevant nodes, so we apply backward slicing~\cite{cpg2014} from the finding's sink via breadth-first search (BFS) along DDG, REACHING\_DEF, and CDG edges up to depth~10, then expand by $\pm 5$ lines of AST context. Typical graph reduction is 67--91\%: a 2,000-node CPG is sliced to 180--660 nodes.
 
 \subsection{Feature Extraction}
 
-Each node in the sliced CPG receives a 774-dimensional feature vector composed of two parts: 768 dimensions from GraphCodeBERT \cite{graphcodebert2021} and 6 hand-crafted structural features.
-
-\textbf{GraphCodeBERT Embeddings (768 dims).} The \texttt{CodeEmbedder} class (\texttt{src/graph/features/embeddings.py}) loads \texttt{microsoft/graphcodebert-base} (a RoBERTa-based model pre-trained on code and data-flow graphs) and extracts the CLS token embedding for each node's code text. Embeddings are computed in batches of 32 and cached in an LRU cache (capacity 4,096) to avoid redundant computation. We chose GraphCodeBERT over CodeBERT \cite{codebert2020} because its data-flow-aware pre-training produces representations that better capture taint-relevant semantics.
-
-\textbf{Structural Features (6 dims).} The \texttt{NodeFeatureExtractor} class (\texttt{src/graph/features/node\_features.py}) computes six features per node, all normalised to $[0, 1]$. Table~\ref{tab:structural-features} details each feature.
+Each node in the sliced CPG receives a 774-dimensional feature vector: 768 dimensions from GraphCodeBERT~\cite{graphcodebert2021} (\texttt{microsoft/graphcodebert-base}, CLS token, batches of 32, LRU cache of 4,096) and 6 structural features.
 
 \begin{table}[H]
 \centering
+\small
 \caption{Six structural node features concatenated with GraphCodeBERT embeddings.}
 \label{tab:structural-features}
 \begin{tabular}{llll}
@@ -276,33 +170,29 @@ Each node in the sliced CPG receives a 774-dimensional feature vector composed o
 \texttt{out\_degree\_norm} & $[0, 1]$ & $\text{out\_deg}(v) / \max(\text{out\_deg})$ & Data fan-out point \\
 \texttt{is\_sink}          & $\{0, 1\}$ & Match against 54 sink patterns & Dangerous operation \\
 \texttt{is\_source}        & $\{0, 1\}$ & Match against 42 source patterns & Untrusted input \\
-\texttt{depth\_norm}       & $[0, 1]$ & BFS depth from root / max depth & Call stack position \\
+\texttt{depth\_norm}       & $[0, 1]$ & Breadth-first search depth / max depth & Call stack position \\
 \texttt{language\_id}      & $\{0, \ldots, 0.8\}$ & py=0, js=0.2, java=0.4, c=0.6, go=0.8 & Language-specific patterns \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The \texttt{is\_sink} and \texttt{is\_source} features encode domain knowledge about taint-relevant API functions (e.g., \texttt{execute}, \texttt{eval}, \texttt{pickle.loads} for sinks; \texttt{request}, \texttt{argv}, \texttt{environ} for sources) without requiring full taint analysis. The \texttt{language\_id} feature was introduced in V3 (replacing the 5-feature V2 configuration) to allow the model to learn language-specific vulnerability patterns.
-
 The final node feature vector is $\mathbf{x}_v = [\mathbf{e}_v \| \mathbf{s}_v] \in \mathbb{R}^{774}$, where $\mathbf{e}_v \in \mathbb{R}^{768}$ is the GraphCodeBERT embedding and $\mathbf{s}_v \in \mathbb{R}^{6}$ is the structural feature vector.
 
 \subsection{MiniGINv3 Architecture}
 
-We chose the Graph Isomorphism Network (GIN) \cite{xu2019gin} over the Graph Attention Network (GAT) based on a principled expressiveness argument. Xu et al.\ (2019) proved that GNNs using mean or max aggregation (as GAT does) are strictly less expressive than the Weisfeiler-Leman (1-WL) graph isomorphism test, while sum aggregation (as GIN uses) is \emph{as powerful as} 1-WL. For vulnerability detection, code graphs often differ in subtle structural ways---a missing bounds check removes one edge, a dead-code branch adds nodes that never execute. GAT's weighted-mean aggregation can conflate these structurally distinct neighbourhoods, while GIN's injective sum aggregation preserves the differences.
-
-Table~\ref{tab:gat-vs-gin} compares the two architectures.
+We chose the Graph Isomorphism Network (GIN)~\cite{xu2019gin} over GAT based on expressiveness: Xu et al.\ proved that GNNs with mean or max aggregation are strictly less expressive than the Weisfeiler-Leman (1-WL) test, while GIN's sum aggregation is as powerful as 1-WL. For vulnerability detection, code graphs often differ in subtle structural ways (a missing bounds check removes one edge, dead code adds unreachable nodes), and GIN's injective sum aggregation preserves these differences.
 
 \begin{table}[H]
 \centering
+\small
 \caption{GAT vs.\ GIN: theoretical and practical comparison.}
 \label{tab:gat-vs-gin}
 \begin{tabular}{lll}
 \toprule
-\textbf{Property} & \textbf{GAT (Mini-GAT, V2)} & \textbf{GIN (MiniGINv3, V3+)} \\
+\textbf{Property} & \textbf{GAT (V2)} & \textbf{GIN (MiniGINv3)} \\
 \midrule
 Aggregation        & Weighted mean (attention) & Sum (injective) \\
 WL-test equivalence & Strictly weaker & As powerful as 1-WL \\
-Injectivity        & No (conflates neighbours) & Yes (provably injective) \\
 Parameters         & 298K & 2,375,046 (2.4M) \\
 Input dimension    & 773 (5 structural) & 774 (6 structural) \\
 Pooling            & Global mean & Dual (mean + add) \\
@@ -310,10 +200,9 @@ Pooling            & Global mean & Dual (mean + add) \\
 \end{tabular}
 \end{table}
 
-The MiniGINv3 architecture processes the 774-dimensional input through a projection layer, three GIN convolutional layers with residual connections, dual global pooling, a classification head, and a confidence head. Table~\ref{tab:miniginv3-layers} gives the layer-by-layer specification.
-
 \begin{table}[H]
 \centering
+\small
 \caption{MiniGINv3 layer-by-layer architecture (2,375,046 parameters).}
 \label{tab:miniginv3-layers}
 \begin{tabular}{lll}
@@ -338,229 +227,140 @@ Each GIN layer applies the update rule:
 \label{eq:gin-update}
 \end{align}
 
-\noindent where $\epsilon^{(k)}$ is a learnable parameter (\texttt{train\_eps=True}), $\mathcal{N}(v)$ is the set of neighbours of node $v$, and $\text{MLP}^{(k)}$ is a two-layer perceptron (384$\to$768$\to$384) with BatchNorm and ReLU. After each GIN layer, a residual connection adds the input: $\mathbf{h}_v^{(k)} \gets \mathbf{h}_v^{(k)} + \mathbf{h}_v^{(k-1)}$.
+\noindent where $\epsilon^{(k)}$ is learnable (\texttt{train\_eps=True}), $\mathcal{N}(v)$ is the neighbor set, and $\text{MLP}^{(k)}$ is a two-layer perceptron (384$\to$768$\to$384) with BatchNorm and ReLU. Residual connections add the input after each layer. Dual pooling concatenates global mean and global add pooling into a 768-dimensional graph embedding: mean pooling captures average node behavior while add pooling preserves total feature magnitude.
 
-The dual pooling concatenates global mean pooling and global add pooling, yielding a 768-dimensional graph-level embedding. We use dual pooling because mean pooling captures the ``average node behaviour'' while add pooling preserves the total magnitude of node features---a property that matters when the number of vulnerable nodes varies.
-
-The confidence head is trained with an auxiliary binary cross-entropy loss:
-\[
-\mathcal{L}_{\text{conf}} = 0.1 \times \text{BCE}(\hat{c}, \mathbb{1}[\arg\max(\hat{y}) = y])
-\]
-where $\hat{c}$ is the predicted confidence and $\mathbb{1}[\cdot]$ indicates whether the classifier's prediction is correct. This trains the confidence head to estimate prediction reliability, providing a secondary uncertainty signal independent of the softmax output.
-
-\subsection{GNN Training Configuration}
-
-Training uses the AdamW optimiser with a learning rate of $3 \times 10^{-4}$, weight decay of $10^{-3}$, and gradient clipping at 0.5. The learning rate schedule consists of a 5-epoch linear warmup followed by cosine decay. We train with a batch size of 64 and dropout rate of 0.35 (reduced from 0.4 in V3 to V5 based on validation performance). Class imbalance is handled through a weighted cross-entropy loss with a vulnerability class weight of 1.5. Early stopping with a patience of 20 epochs prevents overfitting.
-
-The total loss combines classification and confidence objectives:
+The confidence head is trained with an auxiliary loss: $\mathcal{L}_{\text{conf}} = 0.1 \times \text{BCE}(\hat{c}, \mathbb{1}[\arg\max(\hat{y}) = y])$, training it to estimate prediction reliability independently of softmax output. The total loss is:
 \[
 \mathcal{L}_{\text{total}} = \mathcal{L}_{\text{CE}}(\hat{y}, y; w_{\text{vuln}}=1.5) + 0.1 \times \mathcal{L}_{\text{conf}}
 \]
 
-We train on a composite dataset drawn from Juliet Test Suite \cite{juliet2017}, CVEfixes \cite{cvefixes2021}, and DiverseVul \cite{diversevul2023}. The dataset is split 60/15/15/10 for training, validation, calibration, and test (the calibration set is reserved exclusively for conformal prediction and the test set for final evaluation; neither is used during training or hyperparameter selection). Graph construction constraints limit each sample to a maximum of 300 nodes (larger graphs are truncated), with a minimum code length of 20 characters and 3 lines to filter trivial samples.
+\subsection{GNN Training Configuration}
 
-The evolution from V3 to the deployed V5 involved two changes: dropout was reduced from 0.4 to 0.35 (V4), and label smoothing was removed entirely (V5, from 0.1 in V3/V4). We removed label smoothing because it interfered with conformal calibration---smoothed targets shift the logit distribution in ways that increase the calibration set's nonconformity scores, leading to wider (more ambiguous) prediction sets. Without label smoothing, the deployed model produces tighter prediction sets and fewer unnecessary escalations to Stage~3.
+Training uses AdamW (lr $3 \times 10^{-4}$, weight decay $10^{-3}$, gradient clip 0.5) with 5-epoch linear warmup followed by cosine decay, batch size 64, dropout 0.35, and early stopping at patience 20. The training data combines Juliet Test Suite~\cite{juliet2017}, CVEfixes~\cite{cvefixes2021}, and DiverseVul~\cite{diversevul2023}, split 60/15/15/10 for training, validation, calibration, and test (calibration reserved exclusively for conformal prediction). Graphs are capped at 300 nodes; samples require $\geq$20 characters and $\geq$3 lines.
 
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    layer/.style={draw, rounded corners, minimum width=3.2cm, minimum height=0.8cm, align=center, font=\small},
-    arrow/.style={-{Stealth[length=2.5mm]}, thick},
-    dim/.style={font=\scriptsize\itshape, text=gray}
-]
-    \node[layer, fill=blue!10] (input) {Input Features};
-    \node[dim, right=0.3cm of input] {$\mathbb{R}^{N \times 774}$};
-
-    \node[layer, fill=blue!5, below=0.8cm of input] (proj) {Linear(774,384) + BN + ReLU};
-    \node[dim, right=0.3cm of proj] {$\mathbb{R}^{N \times 384}$};
-
-    \node[layer, fill=orange!15, below=0.8cm of proj] (gin1) {GINConv(384$\to$768$\to$384) + Residual};
-    \node[dim, right=0.3cm of gin1] {$\mathbb{R}^{N \times 384}$};
-
-    \node[layer, fill=orange!15, below=0.8cm of gin1] (gin2) {GINConv(384$\to$768$\to$384) + Residual};
-    \node[dim, right=0.3cm of gin2] {$\mathbb{R}^{N \times 384}$};
-
-    \node[layer, fill=orange!15, below=0.8cm of gin2] (gin3) {GINConv(384$\to$768$\to$384) + Residual};
-    \node[dim, right=0.3cm of gin3] {$\mathbb{R}^{N \times 384}$};
-
-    \node[layer, fill=green!15, below=0.8cm of gin3] (pool) {DualPool: cat(MeanPool, AddPool)};
-    \node[dim, right=0.3cm of pool] {$\mathbb{R}^{768}$};
-
-    \node[layer, fill=red!10, below left=1cm and -0.5cm of pool] (cls) {Classifier\\768$\to$384$\to$2};
-    \node[layer, fill=purple!10, below right=1cm and -0.5cm of pool] (conf) {Confidence\\768$\to$1$\to\sigma$};
-
-    \draw[arrow] (input) -- (proj);
-    \draw[arrow] (proj) -- (gin1);
-    \draw[arrow] (gin1) -- (gin2);
-    \draw[arrow] (gin2) -- (gin3);
-    \draw[arrow] (gin3) -- (pool);
-    \draw[arrow] (pool) -| (cls);
-    \draw[arrow] (pool) -| (conf);
-\end{tikzpicture}
-\caption{MiniGINv3 architecture: 3 GIN layers with residual connections, dual pooling, and separate classification and confidence heads. Total: 2.4M parameters.}
-\label{fig:miniginv3}
-\end{figure}
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=\textwidth]{Figures/vulngnn_architecture.png}
-\caption{VulnGNN system architecture showing the complete graph processing pipeline from CPG construction through GIN classification to conformal prediction.}
-\label{fig:vulngnn}
-\end{figure}
+The deployed V5 model differs from V3 in two ways: dropout reduced from 0.4 to 0.35, and label smoothing removed entirely (from 0.1 in V3). Label smoothing was removed because it shifted the logit distribution, increasing nonconformity scores and producing wider prediction sets.
 
 \subsection{Conformal Prediction Layer}
 
-A softmax output of 0.7 does not mean the model is 70\% correct---modern neural networks are poorly calibrated \cite{guocalibration2017}. We need a mechanism that converts the GNN's output into a prediction set with a formal coverage guarantee. This is where conformal prediction enters: it provides distribution-free, finite-sample coverage guarantees without assumptions about the data distribution \cite{angelopoulos2023, vovk2005}.
+Softmax outputs are poorly calibrated~\cite{guocalibration2017}. We implement Adaptive Prediction Sets (APS)~\cite{romano2020} with $\alpha = 0.1$ (90\% coverage guarantee) to convert GNN outputs into prediction sets with formal guarantees~\cite{angelopoulos2023, vovk2005}.
 
-We implement Adaptive Prediction Sets (APS) \cite{romano2020} in the \texttt{ConformalPredictor} class (\texttt{src/graph/uncertainty/conformal.py}), configured with $\alpha = 0.1$ (90\% coverage guarantee).
-
-\textbf{Conformal Temperature Scaling (ConfTS).} Before computing softmax probabilities, we apply temperature scaling with $T = 0.95$ (deployed value, overriding the default $T=0.2$ in \texttt{configs/default.yaml} based on the grid search described in Chapter~4). The temperature-scaled softmax is:
+\textbf{Conformal Temperature Scaling.} Before computing softmax probabilities, we apply temperature scaling with $T = 0.95$ (deployed value, tuned via grid search in Chapter~4):
 
 \begin{align}
 \hat{\pi}_i = \frac{\exp(z_i / T)}{\sum_j \exp(z_j / T)}
 \label{eq:confts}
 \end{align}
 
-\noindent where $z_i$ are the raw logits. Temperature scaling improves calibration without changing the rank order of predictions \cite{guocalibration2017}, which in turn tightens the conformal prediction sets (fewer ambiguous sets means fewer unnecessary escalations).
-
-\textbf{Calibration Phase.} On a held-out calibration set disjoint from both training and test data, we compute nonconformity scores for each sample $i$ with true label $y_i$:
-
-\begin{enumerate}
-    \item Sort classes by descending softmax probability: $\hat{\pi}_{(1)} \geq \hat{\pi}_{(2)} \geq \ldots$
-    \item Compute cumulative sums: $C_j = \sum_{k=1}^{j} \hat{\pi}_{(k)}$
-    \item The nonconformity score is $s_i = C_{\text{rank}(y_i)}$, the cumulative sum at the position where the true label first appears.
-\end{enumerate}
-
-The quantile threshold is then:
+\textbf{Calibration.} On a held-out calibration set, we compute nonconformity scores: sort classes by descending softmax probability, compute cumulative sums $C_j = \sum_{k=1}^{j} \hat{\pi}_{(k)}$, and set $s_i = C_{\text{rank}(y_i)}$. The quantile threshold is:
 
 \begin{align}
 \hat{q} = \text{Quantile}\!\left(\{s_1, \ldots, s_n\},\; \frac{\lceil (n+1)(1-\alpha) \rceil}{n}\right)
 \label{eq:aps-quantile}
 \end{align}
 
-\noindent using the ``higher'' interpolation method, clamped to $[0, 1]$.
-
-\textbf{Coverage Guarantee.} For any new test sample $(X, Y)$ exchangeable with the calibration data, APS guarantees:
+\textbf{Coverage Guarantee.} For any new test sample $(X, Y)$ exchangeable with the calibration data:
 
 \begin{align}
 P(Y \in \mathcal{C}(X)) \geq 1 - \alpha
 \label{eq:coverage}
 \end{align}
 
-This guarantee holds regardless of the model's accuracy---it is a property of the conformal procedure, not the classifier. The only assumption is exchangeability between calibration and test samples \cite{barber2023}, which is satisfied when both sets are drawn i.i.d.\ from the same distribution. Importantly, the guarantee is marginal (over the randomness of the calibration set and new sample), not conditional on a specific input, but this is sufficient for our use case: we need aggregate reliability, not per-finding guarantees.
-
-\textbf{Inference.} For a new graph, we compute temperature-scaled softmax probabilities, sort classes in descending order, and include classes greedily until the cumulative sum meets or exceeds $\hat{q}$. The possible outcomes for our binary classifier are:
-
-\begin{itemize}
-    \item \textbf{Singleton set} $\{\text{``safe''}\}$ or $\{\text{``vulnerable''}\}$: the model is confident. The finding is resolved at Stage~2.
-    \item \textbf{Ambiguous set} $\{\text{``safe''}, \text{``vulnerable''}\}$: the model cannot distinguish the classes. The finding escalates to Stage~3.
-\end{itemize}
-
-Algorithm~\ref{alg:aps} formalises both phases.
-
-\begin{algorithm}[H]
-\caption{APS Calibration and Inference}
-\label{alg:aps}
-\begin{algorithmic}[1]
-\Statex \textbf{Calibration:}
-\Require Calibration set $\{(\mathbf{x}_i, y_i)\}_{i=1}^{n}$, significance level $\alpha = 0.1$, temperature $T$
-\For{$i = 1, \ldots, n$}
-    \State $\hat{\boldsymbol{\pi}}_i \gets \text{softmax}(\mathbf{z}_i / T)$ \Comment{Temperature-scaled probabilities}
-    \State Sort classes by descending $\hat{\pi}_{i,j}$
-    \State $s_i \gets \text{CumulativeSum at rank of } y_i$
-\EndFor
-\State $\hat{q} \gets \text{Quantile}(\{s_1, \ldots, s_n\}, \lceil(n+1)(1-\alpha)\rceil / n, \text{method=``higher''})$
-
-\Statex
-\Statex \textbf{Inference:}
-\Require New sample $\mathbf{x}$, threshold $\hat{q}$
-\State $\hat{\boldsymbol{\pi}} \gets \text{softmax}(\mathbf{z} / T)$
-\State Sort classes by descending $\hat{\pi}_j$
-\State $\mathcal{C} \gets \emptyset$
-\For{$j = 1, 2, \ldots$ in sorted order}
-    \State $\mathcal{C} \gets \mathcal{C} \cup \{\text{class}_j\}$
-    \If{$\sum_{k \in \mathcal{C}} \hat{\pi}_k \geq \hat{q}$}
-        \State \textbf{break}
-    \EndIf
-\EndFor
-\State \Return $\mathcal{C}$, $1 - \alpha$
-\end{algorithmic}
-\end{algorithm}
-
-The conformal prediction layer transforms a GNN score into a routing decision with a formal guarantee: at least 90\% of the time, the true label is in the prediction set. When the set is a singleton, we are confident; when it is not, we have principled evidence that the finding requires deeper analysis.
+This guarantee is distribution-free and holds regardless of model accuracy~\cite{barber2023}. The only assumption is exchangeability between calibration and test samples. At inference, we compute temperature-scaled probabilities, sort classes in descending order, and include classes greedily until the cumulative sum meets $\hat{q}$. Singleton sets (\{``safe''\} or \{``vulnerable''\}) resolve at Stage~2; ambiguous sets (\{``safe'', ``vulnerable''\}) escalate to Stage~3.
 
 % ====================================================================
 \section{\uppercase{Stage 3: LLM Dual-Agent Validation}}
 \label{sec:llm}
 % ====================================================================
 
-Stage~3 applies large language model reasoning to the hardest cases---those that survived both SAST and graph analysis without resolution. The core insight is that a single LLM acting as a judge produces unreliable security verdicts (3.09\% F1 on realistic data \cite{primevul2024}), but an adversarial protocol with opposing agents achieves higher accuracy through structured disagreement \cite{multiagentdebate2023}. This section describes the dual-agent architecture, the consensus protocol (Contribution~C3), the CVSS scoring integration, and the RAG knowledge base.
+Stage~3 applies LLM reasoning to the hardest cases. A single LLM judge produces unreliable security verdicts (47--76\% inconsistency across repeated tasks~\cite{steenhoek2024}), but an adversarial protocol with opposing agents achieves higher accuracy through structured disagreement~\cite{multiagentdebate2023}. This section describes the dual-agent architecture, consensus protocol (Contribution~C3), CVSS scoring, and RAG knowledge base.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=\textwidth]{Figures/llm_stage_architecture.png}
-\caption{LLM stage architecture showing RAG context retrieval, dual-agent dispatch, consensus protocol, and CVSS scoring.}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+    node distance=0.8cm and 1.0cm,
+    every node/.style={font=\footnotesize},
+    box/.style={draw, rounded corners=3pt, minimum height=0.85cm, align=center, thick},
+    input/.style={box, fill=green!10, text width=2cm},
+    db/.style={draw, rounded corners=2pt, fill=green!8, minimum height=0.55cm, align=center, font=\scriptsize, text width=1.5cm},
+    proc/.style={box, fill=orange!12, text width=2.6cm},
+    agent/.style={box, fill=red!10, text width=2.8cm},
+    defend/.style={box, fill=blue!10, text width=2.8cm},
+    engine/.style={box, fill=yellow!15, text width=2.6cm},
+    output/.style={box, fill=purple!12, text width=2.4cm},
+    arr/.style={-{Stealth[length=2.5mm]}, thick, color=gray!70!black},
+    lbl/.style={font=\scriptsize, fill=white, inner sep=1pt},
+]
+% Row 1: Input
+\node[input] (finding) {Escalated\\Finding};
+
+% Row 1: RAG + databases
+\node[proc, right=0.8cm of finding] (rag) {RAG Retrieval\\{\scriptsize FAISS + BM25}};
+\node[db, above=0.35cm of rag] (nvd) {NVD (200K+)};
+\node[db, below=0.35cm of rag] (cwe) {CWE (900+)};
+
+% Row 1: Prompt
+\node[proc, right=0.8cm of rag] (prompt) {Prompt Assembly\\{\scriptsize CWE template}};
+
+% Row 2: Agents (stacked vertically, aligned right of prompt)
+\node[agent, right=1.0cm of prompt, yshift=1.0cm] (atk) {\textbf{Attacker}\\{\scriptsize Exploit paths}};
+\node[defend, right=1.0cm of prompt, yshift=-1.0cm] (def) {\textbf{Defender}\\{\scriptsize Sanitizers}};
+
+% LLM label
+\node[font=\scriptsize, fill=gray!8, rounded corners=2pt, draw=gray!40, inner sep=2pt, right=1.0cm of prompt] (llm) {LLM};
+
+% Row 3: Consensus
+\node[engine, right=1.0cm of llm, xshift=1.2cm] (consensus) {\textbf{Consensus}\\{\scriptsize 5 Rules}};
+
+% Row 3: CVSS
+\node[proc, right=0.8cm of consensus] (cvss) {CVSS v3.1};
+
+% Row 3: Output
+\node[output, right=0.8cm of cvss] (out) {Verdict +\\CVSS Score};
+
+% Arrows
+\draw[arr] (finding) -- (rag);
+\draw[arr] (nvd) -- (rag);
+\draw[arr] (cwe) -- (rag);
+\draw[arr] (rag) -- (prompt);
+\draw[arr] (prompt) -| (atk.west);
+\draw[arr] (prompt) -| (def.west);
+\draw[arr, color=red!50!black] (atk.east) -| ([xshift=-0.3cm]consensus.north);
+\draw[arr, color=blue!50!black] (def.east) -| ([xshift=0.3cm]consensus.south);
+\draw[arr] (consensus) -- (cvss);
+\draw[arr] (cvss) -- (out);
+
+% Labels
+\node[lbl, text=red!60!black, above right=-0.05cm and 0.1cm of atk.east] {\textit{\scriptsize AttackerVerdict}};
+\node[lbl, text=blue!60!black, below right=-0.05cm and 0.1cm of def.east] {\textit{\scriptsize DefenderVerdict}};
+\end{tikzpicture}%
+}
+\caption{Stage~3 LLM architecture: escalated findings receive RAG context, then undergo parallel adversarial analysis by Attacker and Defender agents. A five-rule consensus engine reconciles their verdicts and computes CVSS~v3.1 base scores.}
 \label{fig:llm-arch}
 \end{figure}
 
 \subsection{Dual-Agent Architecture}
 
-The \texttt{ConsensusEngine} class (\texttt{src/llm/consensus/engine.py}) creates two specialised agents that analyse the same finding from opposing perspectives:
+The \texttt{ConsensusEngine} creates two specialized agents. The \textbf{Attacker Agent} (red team) attempts to construct a working exploit, outputting an \texttt{AttackerVerdict} with exploitability flag, concrete payload, CVSS exploitability sub-metrics (AV, AC, PR, UI), blocking factors, and confidence. The \textbf{Defender Agent} (blue team) searches for existing protections, outputting a \texttt{DefenderVerdict} with sanitizers found, access controls, framework protections, path feasibility, CVSS impact sub-metrics (S, C, I, A), and defense coverage score $d_{\text{cov}} \in [0, 1]$.
 
-\textbf{Attacker Agent (Red Team).} The \texttt{AttackerAgent} attempts to construct a working exploit. Its output is an \texttt{AttackerVerdict} containing: (1)~whether the vulnerability is exploitable (\texttt{bool}), (2)~a concrete payload (\texttt{str}), (3)~attack vector, attack complexity, privileges required, and user interaction (CVSS exploitability sub-metrics), (4)~blocking factors that prevented exploitation, and (5)~a confidence score and reasoning narrative.
+Both agents use the LLM provider (15 requests per minute, 500 requests per day on the free tier) with JSON-mode output and temperature 0.1. The adversarial framing follows multi-agent debate~\cite{divergentthinking2023}: structurally opposed agents produce more factually grounded outputs than a single ``thorough'' agent.
 
-\textbf{Defender Agent (Blue Team).} The \texttt{DefenderAgent} searches for existing protections. Its output is a \texttt{DefenderVerdict} containing: (1)~sanitisers found (function name, type, effectiveness), (2)~access controls, (3)~framework protections (e.g., Django ORM, prepared statements), (4)~whether the taint path is feasible (\texttt{bool}), (5)~scope, confidentiality/integrity/availability impact (CVSS impact sub-metrics), and (6)~a defense coverage score $d_{\text{cov}} \in [0, 1]$ and reasoning.
+\subsection{CWE-Specific Prompts and Tiers}
 
-Both agents extend \texttt{BaseSecurityAgent} (\texttt{src/llm/agents/base.py}), which handles Jinja2 template rendering, prompt tier selection, and response parsing. We use Gemini~2.5 Flash as the primary model (15 RPM, 500 RPD free tier) and Gemini~2.5 Pro as fallback for complex cases only. All LLM responses are requested in JSON mode (\texttt{json\_mode=True}) with a temperature of 0.1 to minimise stochastic variation across runs.
-
-The adversarial framing is deliberate: prior work on multi-agent debate \cite{divergentthinking2023} showed that structurally opposed agents produce more factually grounded outputs than a single agent asked to ``be thorough.'' In our domain, the attacker agent is primed with an offensive mindset (``find a way to exploit this''), while the defender is primed with a defensive mindset (``find protections that prevent exploitation''). This opposition forces each agent to address the other's likely arguments, producing more complete analysis than either perspective alone.
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    agent/.style={draw, rounded corners, minimum width=3cm, minimum height=1.5cm, align=center, font=\small\bfseries},
-    arrow/.style={-{Stealth[length=2.5mm]}, thick},
-    data/.style={draw, dashed, rounded corners, minimum width=2.5cm, minimum height=0.8cm, align=center, font=\scriptsize}
-]
-    \node[data, fill=gray!10] (finding) {Finding + Code Context\\+ RAG Knowledge};
-
-    \node[agent, fill=red!15, below left=2cm and 1cm of finding] (attacker) {Attacker Agent\\(Red Team)};
-    \node[agent, fill=blue!15, below right=2cm and 1cm of finding] (defender) {Defender Agent\\(Blue Team)};
-
-    \node[data, fill=red!10, below=1.5cm of attacker] (av) {AttackerVerdict\\confidence, reasoning,\\CVSS sub-metrics};
-    \node[data, fill=blue!10, below=1.5cm of defender] (dv) {DefenderVerdict\\confidence, reasoning,\\sanitizer analysis};
-
-    \node[agent, fill=purple!15, below=1cm of finding, yshift=-7cm] (consensus) {Consensus Engine\\(5 Rules)};
-
-    \node[data, fill=green!10, below=1.5cm of consensus] (output) {LLMValidation\\verdict, fused\_confidence,\\CVSS score, evidence};
-
-    \draw[arrow] (finding) -| (attacker);
-    \draw[arrow] (finding) -| (defender);
-    \draw[arrow] (attacker) -- (av);
-    \draw[arrow] (defender) -- (dv);
-    \draw[arrow] (av) |- (consensus);
-    \draw[arrow] (dv) |- (consensus);
-    \draw[arrow] (consensus) -- (output);
-\end{tikzpicture}
-\caption{Dual-agent adversarial validation protocol. The attacker agent analyses exploitability while the defender agent identifies sanitisers. A consensus engine combines both verdicts using five decision rules.}
-\label{fig:dual-agent}
-\end{figure}
-
-\subsection{CWE-Specific Prompt Templates}
-
-Prompt quality directly affects LLM verdict accuracy. We use Jinja2 templates organised by CWE category, selected via the \texttt{\_CWE\_CATEGORY\_MAP} in \texttt{base.py}. Table~\ref{tab:cwe-templates} shows the six template categories and their CWE mappings.
+Jinja2 templates are organized by CWE category, selected via a CWE-to-category mapping. Table~\ref{tab:cwe-templates} shows the six categories.
 
 \begin{table}[H]
 \centering
+\small
 \caption{CWE-to-template category mapping for Jinja2 prompt selection.}
 \label{tab:cwe-templates}
 \begin{tabular}{llp{5.5cm}}
 \toprule
 \textbf{Category} & \textbf{CWE IDs} & \textbf{Prompt Focus} \\
 \midrule
-\texttt{injection}       & 74, 77, 78, 79, 89, 90, 94, 95, 917 & Source-sink taint, sanitiser bypass \\
+\texttt{injection}       & 74, 77, 78, 79, 89, 90, 94, 95, 917 & Source-sink taint, sanitizer bypass \\
 \texttt{deserialization}  & 502 & Gadget chains, type confusion \\
-\texttt{path\_traversal} & 22, 23, 35, 59 & Canonicalisation, chroot escape \\
+\texttt{path\_traversal} & 22, 23, 35, 59 & Canonicalization, chroot escape \\
 \texttt{crypto}          & 327, 328, 330, 331 & Algorithm strength, key management \\
 \texttt{auth}            & 284, 285, 287, 862, 863 & Session handling, privilege escalation \\
 \texttt{default}         & All others & General vulnerability analysis \\
@@ -568,13 +368,12 @@ Prompt quality directly affects LLM verdict accuracy. We use Jinja2 templates or
 \end{tabular}
 \end{table}
 
-\subsection{Prompt Tier Selection}
-
-Not all findings require the same level of LLM context. We implement uncertainty-adaptive prompt sizing through three tiers, selected based on the finding's uncertainty score $U$. Table~\ref{tab:prompt-tiers} specifies the tiers.
+Prompt sizing is uncertainty-adaptive through three tiers, as shown in Table~\ref{tab:prompt-tiers}.
 
 \begin{table}[H]
 \centering
-\caption{Prompt tiers based on uncertainty score, implemented in \texttt{BaseSecurityAgent}.}
+\small
+\caption{Prompt tiers based on uncertainty score.}
 \label{tab:prompt-tiers}
 \begin{tabular}{llrl}
 \toprule
@@ -587,15 +386,14 @@ Full     & $U \geq 0.6$ & $\sim$3,000 & Everything + RAG context + graph metrics
 \end{tabular}
 \end{table}
 
-This tiered approach conserves API tokens: easy cases that reached Stage~3 (e.g., due to an ambiguous conformal set on an otherwise simple finding) receive minimal prompts, while genuinely complex cases receive full context. The thresholds (0.3, 0.6) are configured in \texttt{configs/default.yaml} under \texttt{llm.gemini.prompt\_tier\_thresholds}.
-
 \subsection{Consensus Protocol}
 
-The consensus engine applies five decision rules to the combined attacker and defender verdicts. Let $e$ denote the attacker's \texttt{exploitable} flag, $c_{\text{atk}}$ the attacker's confidence, $d_{\text{cov}}$ the defender's \texttt{defense\_coverage\_score}, and $p_{\text{feas}}$ the defender's \texttt{path\_feasible} flag. Table~\ref{tab:consensus-rules} specifies each rule, and Algorithm~\ref{alg:consensus} formalises the protocol.
+The consensus engine applies five decision rules. Let $e$ denote the attacker's exploitable flag, $c_{\text{atk}}$ the attacker's confidence, $d_{\text{cov}}$ the defender's defense coverage, and $p_{\text{feas}}$ the defender's path feasibility flag.
 
 \begin{table}[H]
 \centering
-\caption{Consensus decision rules with configurable thresholds (from \texttt{engine.py}).}
+\small
+\caption{Consensus decision rules with configurable thresholds.}
 \label{tab:consensus-rules}
 \begin{tabular}{clll}
 \toprule
@@ -610,93 +408,54 @@ R4  & $e = \text{False} \wedge d_{\text{cov}} \leq 0.7$ & POTENTIAL & $0.4 + 0.2
 \end{tabular}
 \end{table}
 
-The thresholds ($0.5$ for confirmed, $0.7$ for safe, $0.8$ for infeasible confidence) are read from \texttt{configs/default.yaml} under \texttt{llm.consensus}, making them tunable without code changes.
-
-\begin{algorithm}[H]
-\caption{Dual-Agent Consensus Protocol}
-\label{alg:consensus}
-\begin{algorithmic}[1]
-\Require AttackerVerdict $(e, c_{\text{atk}}, \text{payload}, \text{AV}, \text{AC}, \text{PR}, \text{UI})$
-\Require DefenderVerdict $(d_{\text{cov}}, p_{\text{feas}}, \text{sanitisers}, \text{S}, \text{C}, \text{I}, \text{A})$
-\Require Thresholds: $\tau_{\text{conf}} = 0.5$, $\tau_{\text{safe}} = 0.7$, $c_{\text{infeas}} = 0.8$
-\If{$e$ \textbf{and} $d_{\text{cov}} < \tau_{\text{conf}}$} \Comment{Rule 1: Strong vulnerability evidence}
-    \State \Return (CONFIRMED, $\max(c_{\text{atk}}, 1 - d_{\text{cov}})$)
-\ElsIf{$\neg e$ \textbf{and} $d_{\text{cov}} > \tau_{\text{safe}}$} \Comment{Rule 2: Strong safety evidence}
-    \State \Return (SAFE, $\max(d_{\text{cov}}, 1 - c_{\text{atk}})$)
-\ElsIf{$\neg e$ \textbf{and} $\neg p_{\text{feas}}$} \Comment{Rule 2b: Path infeasible}
-    \State \Return (SAFE, $c_{\text{infeas}}$)
-\ElsIf{$e$ \textbf{and} $d_{\text{cov}} \geq \tau_{\text{conf}}$} \Comment{Rule 3: Exploitable but defended}
-    \State $c \gets \text{clamp}(0.5 + 0.3(c_{\text{atk}} - d_{\text{cov}}),\; 0.3,\; 0.85)$
-    \State \Return (LIKELY, $c$)
-\Else \Comment{Rule 4: Not exploitable, weak defence}
-    \State $c \gets \text{clamp}(0.4 + 0.2(1 - d_{\text{cov}}),\; 0.2,\; 0.6)$
-    \State \Return (POTENTIAL, $c$)
-\EndIf
-\end{algorithmic}
-\end{algorithm}
-
-The consensus protocol resolves a fundamental tension: the attacker agent is incentivised to find exploits (high recall), while the defender agent is incentivised to find protections (high precision). By requiring both perspectives to agree before confirming or dismissing a finding, we reduce both false positives and false negatives compared to a single-agent approach.
-
 \subsection{CVSS v3.1 Scoring}
 
-The \texttt{compute\_cvss\_base\_score} function (\texttt{src/llm/consensus/cvss.py}) computes CVSS~v3.1 base scores from the sub-metrics produced by the attacker (AV, AC, PR, UI) and defender (S, C, I, A) agents. The computation follows the NIST specification \cite{cvss31}:
+The framework computes CVSS~v3.1 base scores from eight sub-metrics produced by the two agents, following the NIST specification~\cite{cvss31}. The attacker provides four exploitability sub-metrics: Attack Vector (AV), Attack Complexity (AC), Privileges Required (PR), and User Interaction (UI). The defender provides Scope (S) and three impact sub-metrics: Confidentiality (C), Integrity (I), and Availability (A). The Impact Sub-Score $\text{ISS} = 1 - (1-C)(1-I)(1-A)$ feeds into scope-dependent impact formulas, while exploitability is $8.22 \times AV \times AC \times PR \times UI$:
 
 \begin{align}
 \text{ISS} &= 1 - (1 - C)(1 - I)(1 - A) \label{eq:iss} \\
-\text{Impact}_{\text{unchanged}} &= 6.42 \times \text{ISS} \notag \\
-\text{Impact}_{\text{changed}} &= 7.52(\text{ISS} - 0.029) - 3.25(\text{ISS} - 0.02)^{15} \notag \\
 \text{Exploitability} &= 8.22 \times AV \times AC \times PR \times UI \label{eq:exploitability} \\
+\text{Impact}_{\text{unchg}} &= 6.42 \times \text{ISS} \\
+\text{Impact}_{\text{chg}} &= 7.52 \times (\text{ISS} - 0.029) - 3.25 \times (\text{ISS} - 0.02)^{15} \\
 \text{Base Score} &= \begin{cases}
     \text{roundup}(\min(\text{Impact} + \text{Exploitability},\; 10.0)) & \text{if } S = \text{unchanged} \\
     \text{roundup}(\min(1.08 \times (\text{Impact} + \text{Exploitability}),\; 10.0)) & \text{if } S = \text{changed}
 \end{cases} \label{eq:cvss-base}
 \end{align}
 
-\noindent where $C$, $I$, $A$ are the confidentiality, integrity, and availability impact values $\in \{0.0, 0.22, 0.56\}$ corresponding to \{none, low, high\}, and $AV$, $AC$, $PR$, $UI$ are the exploitability metric constants defined in the CVSS~v3.1 specification.
-
-For findings resolved before Stage~3 (which do not have agent-produced sub-metrics), we provide default CVSS vectors for 14 common CWEs. Table~\ref{tab:cvss-vectors} shows representative defaults.
+\noindent For findings resolved before Stage~3, default CVSS vectors are provided for 14 common CWEs. Table~\ref{tab:cvss-vectors} shows representative defaults.
 
 \begin{table}[H]
 \centering
-\caption{Default CVSS vectors for common CWEs (from \texttt{cvss.py}).}
+\small
+\caption{Default CVSS v3.1 vectors for common CWEs. Legend: N=Network/None, L=Low/Local, H=High, R=Required, U=Unchanged, C=Changed.}
 \label{tab:cvss-vectors}
-\begin{tabular}{llr}
+\begin{tabular}{lccccccccr}
 \toprule
-\textbf{CWE} & \textbf{Vector (AV/AC/PR/UI/S/C/I/A)} & \textbf{Score} \\
+\textbf{CWE} & \textbf{AV} & \textbf{AC} & \textbf{PR} & \textbf{UI} & \textbf{S} & \textbf{C} & \textbf{I} & \textbf{A} & \textbf{Score} \\
 \midrule
-CWE-78 (OS Command Inj.) & N/L/N/N/U/H/H/H & 9.8 \\
-CWE-89 (SQL Injection) & N/L/N/N/U/H/H/N & 9.1 \\
-CWE-79 (XSS) & N/L/N/R/C/L/L/N & 6.1 \\
-CWE-416 (Use After Free) & L/H/L/N/U/H/H/H & 7.0 \\
-CWE-327 (Broken Crypto) & N/L/N/N/U/H/N/N & 7.5 \\
-CWE-502 (Deserialization) & N/L/N/N/U/H/H/H & 9.8 \\
+CWE-78 (OS Cmd Inj.)  & Net & Low & None & None & Unchg & High & High & High & 9.8 \\
+CWE-89 (SQL Injection) & Net & Low & None & None & Unchg & High & High & None & 9.1 \\
+CWE-79 (XSS)           & Net & Low & None & Req  & Chgd  & Low  & Low  & None & 6.1 \\
+CWE-416 (Use After Free)& Loc & High& Low  & None & Unchg & High & High & High & 7.0 \\
+CWE-327 (Broken Crypto) & Net & Low & None & None & Unchg & High & None & None & 7.5 \\
+CWE-502 (Deserialization)& Net& Low & None & None & Unchg & High & High & High & 9.8 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{RAG Knowledge Base}
 
-The \texttt{KnowledgeBase} class (\texttt{src/llm/rag/knowledge\_base.py}) provides contextual vulnerability knowledge to both agents through a hybrid retrieval architecture. We chose hybrid retrieval because semantic search alone misses keyword-specific patterns (e.g., specific CVE IDs), while keyword search alone misses semantically related but lexically different descriptions.
-
-The knowledge base indexes two data sources: over 200,000 NVD CVE entries (parsed from NIST JSON feeds) and over 900 CWE entries (parsed from MITRE XML catalog). Retrieval combines two strategies:
-
-\textbf{FAISS semantic search} uses \texttt{all-MiniLM-L6-v2} sentence-transformer embeddings in a flat inner-product index. The query (CWE description + code snippet) is embedded and compared against all indexed documents.
-
-\textbf{BM25 keyword search} uses Okapi BM25 over tokenised document texts, capturing exact-match patterns that dense embeddings may miss (CVE IDs, function names, specific error messages).
-
-Results are fused using Reciprocal Rank Fusion (RRF):
+Table~\ref{tab:rag-config} summarizes the knowledge base configuration. The knowledge base indexes over 200,000 NVD CVE entries and over 900 CWE entries. Retrieval combines Facebook AI Similarity Search (FAISS) semantic search (\texttt{all-MiniLM-L6-v2}, flat inner-product index) with BM25 keyword search, fused via Reciprocal Rank Fusion (Equation~\ref{eq:rrf}). The top-5 documents after RRF fusion are injected into agent prompts; batch processing groups up to 5 findings per LLM call, reducing API calls by up to 5$\times$.
 
 \begin{align}
 \text{RRF}(d) = \sum_{r \in \{r_{\text{FAISS}}, r_{\text{BM25}}\}} \frac{w_r}{k + \text{rank}_r(d)}
 \label{eq:rrf}
 \end{align}
 
-\noindent where $w_{\text{FAISS}} = 0.6$, $w_{\text{BM25}} = 0.4$, $k = 60$, and $\text{rank}_r(d)$ is the rank of document $d$ in retrieval method $r$. The top-$k = 5$ documents after RRF fusion are injected into the prompt.
-
-Table~\ref{tab:rag-config} summarises the RAG configuration.
-
 \begin{table}[H]
 \centering
+\small
 \caption{RAG knowledge base configuration.}
 \label{tab:rag-config}
 \begin{tabular}{ll}
@@ -717,37 +476,26 @@ OWASP mappings & 40+ CWEs $\to$ OWASP Top 10 (2021) \\
 \end{tabular}
 \end{table}
 
-The knowledge base also provides OWASP Top~10 (2021) guidance for 40+ CWEs, directly mapping each CWE to its OWASP category and recommended mitigations. This grounding reduces LLM hallucination by anchoring both agents' reasoning in verified vulnerability knowledge.
-
-\subsection{Batch Processing}
-
-To conserve API quota under free-tier rate limits (15~RPM, 500~RPD for Flash), the consensus engine supports batch validation: up to 5 findings are analysed in a single LLM call using a structured JSON prompt. The \texttt{validate\_batch} method chunks findings into groups of \texttt{max\_batch\_size} = 5, constructs a multi-finding prompt, and parses the response into per-finding attacker and defender verdicts. If batch parsing fails, the engine falls back to individual \texttt{validate} calls. This batch strategy reduces API calls by up to 5x while maintaining the same dual-agent protocol.
-
 % ====================================================================
 \section{\uppercase{Stage 4: Score Fusion and Classification}}
 \label{sec:fusion}
 % ====================================================================
 
-Stage~4 combines confidence scores from all stages that a finding traversed into a unified vulnerability score. The key design choice is CWE-adaptive weighting: different vulnerability categories benefit from different stage contributions. This is Contribution~C4.
+Stage~4 combines confidence scores from all stages into a unified vulnerability score using CWE-adaptive weighting (Contribution~C4).
 
 \subsection{CWE-Adaptive Fusion Formula}
-
-The \texttt{ScoreFusionEngine} class (\texttt{src/orchestrator/fusion.py}) computes:
 
 \begin{align}
 S_{\text{fused}} = \alpha \cdot S_{\text{SAST}} + \beta \cdot S_{\text{Graph}} + \gamma \cdot S_{\text{LLM}}
 \label{eq:fusion}
 \end{align}
 
-\noindent where $(\alpha, \beta, \gamma)$ are CWE-specific weights loaded from \texttt{configs/cwe\_weights.yaml}. When a finding did not pass through a given stage (e.g., resolved at SAST, so $S_{\text{Graph}}$ and $S_{\text{LLM}}$ are absent), the engine renormalises the weights of the stages that did execute to sum to~1.0. Concretely, if only SAST executed, $S_{\text{fused}} = S_{\text{SAST}}$. If SAST and Graph executed but LLM did not, $S_{\text{fused}} = (\alpha \cdot S_{\text{SAST}} + \beta \cdot S_{\text{Graph}}) / (\alpha + \beta)$. This renormalisation ensures that findings resolved at earlier stages are not penalised for missing later-stage scores.
-
-The component scores are extracted as follows: $S_{\text{SAST}}$ is the \texttt{sast\_confidence} field (SAST tool's self-reported confidence), $S_{\text{Graph}}$ is the \texttt{structural\_risk\_score} from \texttt{GraphValidation}, and $S_{\text{LLM}}$ is the \texttt{consensus\_confidence} from \texttt{LLMValidation}.
-
-Table~\ref{tab:cwe-weights} shows the full set of CWE-adaptive weights. The rationale for each category follows from the strengths and weaknesses identified in Chapter~2.
+\noindent where $(\alpha, \beta, \gamma)$ are CWE-specific weights from \texttt{configs/cwe\_weights.yaml}. When a finding did not pass through a given stage, the engine renormalizes remaining weights to sum to~1.0. Table~\ref{tab:cwe-weights} lists the configured weights.
 
 \begin{table}[H]
 \centering
-\caption{CWE-adaptive fusion weights ($\alpha$, $\beta$, $\gamma$) from \texttt{cwe\_weights.yaml}.}
+\small
+\caption{Representative CWE-adaptive fusion weights ($\alpha$, $\beta$, $\gamma$). The complete set of 14 profiles appears in the Appendix, Table~\ref{tab:fusion-weights}.}
 \label{tab:cwe-weights}
 \begin{tabular}{llcccp{4cm}}
 \toprule
@@ -756,7 +504,7 @@ Table~\ref{tab:cwe-weights} shows the full set of CWE-adaptive weights. The rati
 Injection      & 78, 79        & 0.25 & 0.25 & 0.50 & LLM excels at context \\
 SQL Injection  & 89            & 0.30 & 0.25 & 0.45 & SAST taint strong here \\
 Code Injection & 94            & 0.25 & 0.30 & 0.45 & Graph structure matters \\
-Crypto         & 327, 328      & 0.50 & 0.20 & 0.30 & LLM misses 77--84\% \\
+Crypto         & 327, 328      & 0.50 & 0.20 & 0.30 & SAST pattern matching \\
 Memory         & 416           & 0.20 & 0.50 & 0.30 & Graph captures structure \\
 Null Deref     & 476           & 0.25 & 0.45 & 0.30 & Graph captures structure \\
 Auth           & 287, 862      & 0.20 & 0.25 & 0.55 & LLM semantic understanding \\
@@ -767,22 +515,13 @@ Default        & All others    & 0.30 & 0.30 & 0.40 & Balanced baseline \\
 \end{tabular}
 \end{table}
 
-\textbf{Injection CWEs} receive LLM-heavy weights because LLMs can reason about context---whether a parameterised query was used, whether the sanitiser matches the injection type, whether the framework provides automatic escaping. SAST finds the taint path but cannot evaluate the semantic adequacy of a sanitiser.
-
-\textbf{Cryptographic CWEs} receive SAST-heavy weights because LLMs consistently fail to identify weak algorithms (they treat SHA-1 as acceptable in many contexts). SAST tools have hard-coded rules for deprecated algorithms and can reliably flag \texttt{MD5}, \texttt{DES}, and \texttt{SHA-1} usage.
-
-\textbf{Memory safety CWEs} receive graph-heavy weights because use-after-free and null dereference vulnerabilities depend on control flow structure---which execution paths reach the dangerous access, whether a check guards the dereference. The GNN captures these structural patterns through the CPG.
-
-\textbf{Authentication CWEs} receive the highest LLM weights ($\gamma = 0.55$) because authentication logic is inherently semantic: whether a session token is validated, whether a role check precedes a privileged operation, whether a password comparison uses constant-time comparison. SAST tools can flag missing authentication decorators but cannot evaluate whether the authentication logic is correct. The LLM agents can reason about authentication flows and identify subtle bypass conditions.
-
-The initial weights are based on domain expertise and published benchmarks. We provide a calibration script (\texttt{scripts/calibrate\_weights.py}) that tunes these weights on labeled validation data, but the expert-derived weights serve as a strong baseline that requires minimal tuning in practice.
+Two LLM override rules supersede threshold classification: (1)~if the attacker confirmed exploitability and defense coverage $< 0.3$, the verdict is forced to CONFIRMED; (2)~if the attacker found no exploit and defense coverage $> 0.8$, the verdict is forced to SAFE.
 
 \subsection{Three-Tier Classification}
 
-After computing $S_{\text{fused}}$, each finding is classified into one of three tiers. Table~\ref{tab:classification} gives the thresholds.
-
 \begin{table}[H]
 \centering
+\small
 \caption{Classification thresholds applied to the fused score.}
 \label{tab:classification}
 \begin{tabular}{lcl}
@@ -797,126 +536,17 @@ SAFE       & (via LLM override) & False positive filtered \\
 \end{tabular}
 \end{table}
 
-The fusion engine also implements two LLM override rules that supersede the threshold classification: (1)~if the attacker agent confirmed exploitability \emph{and} the defender's defense coverage is below 0.3, the verdict is forced to CONFIRMED regardless of the fused score; (2)~if the attacker agent did not find an exploit \emph{and} the defender's defense coverage exceeds 0.8, the verdict is forced to SAFE. These overrides handle cases where the fused score is misleading due to a single anomalous stage score.
-
 % ====================================================================
 \section{\uppercase{Finding Lifecycle and Reporting}}
 \label{sec:reporting}
 % ====================================================================
 
-Each vulnerability finding in the \texttt{sec-c} framework follows a defined lifecycle from creation to final report. This lifecycle is encoded in the \texttt{Finding} Pydantic model, which serves as the universal data container across all four stages.
+Each finding follows a defined lifecycle encoded in the \texttt{Finding} Pydantic model, which serves as the universal data container across all four stages. Every intermediate value is preserved, making the entire analysis chain auditable in the final report.
 
-\subsection{Finding State Machine}
+Findings transition through seven states: NEW, SAST\_SCORED, SAST\_RESOLVED, GRAPH\_VALIDATED, GRAPH\_RESOLVED, LLM\_VALIDATED, and SCORE\_FUSED. A finding enters as NEW when created by Tree-sitter or CodeQL, receives an \texttt{UncertaintyScore} at SAST\_SCORED, and resolves at the earliest stage whose confidence is sufficient. Findings that reach LLM\_VALIDATED carry attacker/defender verdicts, a consensus result, and a CVSS score before proceeding to final fusion.
 
-A \texttt{Finding} object transitions through the following states:
+The framework emits SARIF~2.1.0 output with custom properties recording uncertainty scores, stage resolution, fused scores, and CVSS vectors. The \texttt{--dashboard} flag generates a self-contained HTML report with a cascade funnel, expandable finding cards, severity distribution, CWE treemap, and CVSS histogram. The pipeline degrades gracefully when tools are missing: CodeQL-unavailable uses Tree-sitter alone, Joern-unavailable skips Stage~2, missing LLM keys skip Stage~3.
 
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[
-    state/.style={draw, circle, minimum size=1.5cm, align=center, font=\scriptsize\bfseries},
-    arrow/.style={-{Stealth[length=2.5mm]}, thick},
-    every edge/.style={draw, arrow},
-    node distance=3cm
-]
-    \node[state, fill=gray!20] (new) {NEW};
-    \node[state, fill=orange!20, right=of new] (sast) {SAST\\Scored};
-    \node[state, fill=green!20, above right=1.5cm and 2.5cm of sast] (sast_r) {SAST\\Resolved};
-    \node[state, fill=yellow!20, right=of sast] (graph) {Graph\\Validated};
-    \node[state, fill=green!20, above right=1.5cm and 2.5cm of graph] (graph_r) {Graph\\Resolved};
-    \node[state, fill=red!15, right=of graph] (llm) {LLM\\Validated};
-    \node[state, fill=purple!20, below=2cm of graph] (fused) {Score\\Fused};
+\vspace{0.5em}
 
-    \path (new) edge node[above, font=\scriptsize] {pre-screen} (sast);
-    \path (sast) edge node[above, font=\scriptsize, sloped] {$U < 0.5$} (sast_r);
-    \path (sast) edge node[above, font=\scriptsize] {$U \geq 0.5$} (graph);
-    \path (graph) edge node[above, font=\scriptsize, sloped] {singleton} (graph_r);
-    \path (graph) edge node[above, font=\scriptsize] {ambiguous} (llm);
-    \path (sast_r) edge[bend right=20] (fused);
-    \path (graph_r) edge (fused);
-    \path (llm) edge[bend left=20] (fused);
-\end{tikzpicture}
-\caption{Finding lifecycle through the four-stage cascade. Each finding enters as NEW and exits with a fused score after resolution at the earliest possible stage.}
-\label{fig:lifecycle}
-\end{figure}
-
-\textbf{State 1: NEW.} Created by Tree-sitter or CodeQL with initial fields: \texttt{rule\_id}, \texttt{cwe\_id}, \texttt{severity}, \texttt{location}, \texttt{taint\_flow}, \texttt{sast\_confidence}.
-
-\textbf{State 2: SAST Scored.} The \texttt{UncertaintyScorer} computes and attaches the \texttt{UncertaintyScore} object (four factors, weights, severity adjustment, total).
-
-\textbf{State 3a: SAST Resolved.} If $U < 0.5$ and no routing rules fire, the finding receives \texttt{stage\_resolved = SAST} and \texttt{verdict = SAFE}.
-
-\textbf{State 3b: Graph Validated.} The finding receives a \texttt{GraphValidation} object containing \texttt{structural\_risk\_score}, \texttt{conformal\_prediction\_set}, \texttt{conformal\_coverage}, \texttt{taint\_path\_length}, and other structural metrics.
-
-\textbf{State 4a: Graph Resolved.} Singleton prediction set: \texttt{stage\_resolved = GRAPH}, verdict set to \texttt{LIKELY} (if ``vulnerable'') or \texttt{SAFE} (if ``safe'').
-
-\textbf{State 4b: LLM Validated.} The finding receives an \texttt{LLMValidation} object containing \texttt{AttackerVerdict}, \texttt{DefenderVerdict}, \texttt{consensus\_verdict}, \texttt{consensus\_confidence}, \texttt{cvss\_base\_score}, \texttt{cvss\_vector}, \texttt{cvss\_severity}, and \texttt{evidence\_narrative}.
-
-\textbf{State 5: Score Fused.} The \texttt{ScoreFusionEngine} computes \texttt{fused\_score} and sets the final \texttt{verdict} and \texttt{nl\_explanation}.
-
-Every intermediate value is preserved on the \texttt{Finding} object, making the entire analysis chain auditable in the final report.
-
-\subsection{SARIF 2.1.0 Output}
-
-The framework emits findings in SARIF~2.1.0 format (Static Analysis Results Interchange Format), the OASIS standard for static analysis output. Each finding maps to a SARIF \texttt{result} object with:
-
-\begin{itemize}
-    \item \texttt{ruleId}: the SAST rule that generated the finding
-    \item \texttt{level}: mapped from the \texttt{Severity} enum (error/warning/note)
-    \item \texttt{message.text}: the SAST message enriched with the verdict
-    \item \texttt{locations}: file, line, column from the \texttt{Location} model
-    \item \texttt{codeFlows}: full taint path from the \texttt{TaintFlow} model
-    \item Custom \texttt{sec-c/*} properties: uncertainty score, stage resolved, fused score, CVSS vector, attacker/defender reasoning
-\end{itemize}
-
-\subsection{HTML Dashboard}
-
-The \texttt{sec-c scan --dashboard} command generates an interactive HTML report with:
-
-\begin{itemize}
-    \item \textbf{Cascade funnel}: visual showing how many findings were resolved at each stage
-    \item \textbf{Finding cards}: expandable per-finding detail including taint flow, graph metrics, and LLM reasoning
-    \item \textbf{Severity distribution}: breakdown by CRITICAL/HIGH/MEDIUM/LOW
-    \item \textbf{CWE treemap}: findings grouped by CWE category
-    \item \textbf{CVSS histogram}: distribution of CVSS base scores
-\end{itemize}
-
-The dashboard is self-contained (single HTML file with embedded CSS and JavaScript) and opens automatically in the default browser.
-
-\subsection{Graceful Degradation}
-
-The pipeline adapts to missing tools at runtime. Table~\ref{tab:stages} shows that each stage is optional except SAST. When a stage is unavailable, its findings are either resolved with reduced confidence or escalated to the next available stage:
-
-\begin{itemize}
-    \item \textbf{CodeQL unavailable}: Tree-sitter findings are used alone (lower baseline confidence of 0.6--0.8 vs.\ CodeQL's 0.8--0.95).
-    \item \textbf{Joern unavailable}: Stage~2 is skipped entirely; findings escalate directly from Stage~1 to Stage~3 (if an LLM API key is configured) or remain at Stage~1 resolution.
-    \item \textbf{LLM API key missing}: Stage~3 is skipped; findings are resolved at their current stage or marked as UNRESOLVED.
-    \item \textbf{GNN model missing}: Graph features are extracted but classification falls back to heuristic scoring based on structural features alone.
-\end{itemize}
-
-This degradation strategy ensures that the framework produces actionable output in any environment, from a developer laptop with no external tools to a CI/CD pipeline with full infrastructure.
-
-\subsection{The Finding Data Model}
-
-The unified \texttt{Finding} Pydantic model (\texttt{src/sast/sarif/schema.py}) serves as the backbone of the entire pipeline. Every stage reads from and writes to the same object, so no information is lost in translation between stages. The model contains five groups of fields:
-
-\begin{itemize}
-    \item \textbf{Identity}: \texttt{id}, \texttt{rule\_id}, \texttt{cwe\_id}, \texttt{cwe\_name}, \texttt{severity}, \texttt{language}
-    \item \textbf{Location}: \texttt{Location} (file, line, column, snippet), optional \texttt{TaintFlow} (ordered list of \texttt{TaintFlowStep} with source/intermediate/sanitiser/sink labels)
-    \item \textbf{Stage 1 results}: \texttt{sast\_confidence}, \texttt{sast\_message}, \texttt{sast\_tool}, \texttt{UncertaintyScore} (four factors, weights, severity adjustment, total)
-    \item \textbf{Stage 2 results}: \texttt{GraphValidation} (\texttt{structural\_risk\_score}, \texttt{conformal\_prediction\_set}, \texttt{conformal\_coverage}, \texttt{taint\_path\_length}, \texttt{control\_flow\_complexity}, \texttt{data\_flow\_fan\_out}, \texttt{sanitizer\_coverage}, \texttt{interprocedural\_depth})
-    \item \textbf{Stage 3 results}: \texttt{LLMValidation} (\texttt{AttackerVerdict}, \texttt{DefenderVerdict}, \texttt{consensus\_verdict}, \texttt{consensus\_confidence}, \texttt{cvss\_base\_score}, \texttt{cvss\_vector}, \texttt{evidence\_narrative})
-    \item \textbf{Stage 4 results}: \texttt{fused\_score}, \texttt{verdict}, \texttt{stage\_resolved}, \texttt{nl\_explanation}, \texttt{remediation}
-\end{itemize}
-
-The \texttt{ScanResult} model aggregates all findings and tracks cascade statistics: \texttt{resolved\_at\_sast}, \texttt{resolved\_at\_graph}, \texttt{resolved\_at\_llm}, and \texttt{unresolved}. The \texttt{cascade\_efficiency} property computes the fraction resolved at Stage~1, which is the primary efficiency metric.
-
-Computed properties on the \texttt{Finding} model---\texttt{is\_escalated\_to\_graph} (checks $U \geq 0.5$) and \texttt{is\_escalated\_to\_llm} (checks whether the conformal prediction set is ambiguous)---provide convenience accessors that mirror the routing logic without duplicating it. The \texttt{display\_summary} property produces a one-line summary suitable for console output.
-
-\subsection{Pipeline Orchestration}
-
-The \texttt{PipelineOrchestrator} class (\texttt{src/orchestrator/pipeline.py}) coordinates the async execution of all four stages. It accepts a scan target (file path, directory, or GitHub URL), detects languages, and dispatches findings through the cascade. Stage~3 uses Python's \texttt{asyncio} to run attacker and defender agents concurrently (or sequentially under rate limits). The orchestrator tracks timing per stage and records \texttt{CascadeStats} for the final report.
-
-\vspace{1em}
-
-The methodology described in this chapter defines a complete pipeline from source code to triaged vulnerability report. Chapter~4 evaluates this pipeline experimentally: we measure cascade efficiency (what fraction of findings each stage resolves), classification accuracy (precision, recall, F1 against labeled datasets), conformal coverage (does the 90\% guarantee hold empirically), and end-to-end comparison against standalone tools (Semgrep, CodeQL, Snyk, LLM-only).
-
+This chapter defined the complete pipeline from source code to triaged vulnerability report. Chapter~4 evaluates the pipeline experimentally: cascade efficiency, classification accuracy, conformal coverage, and end-to-end comparison against standalone tools.

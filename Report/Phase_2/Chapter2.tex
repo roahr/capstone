@@ -1,686 +1,252 @@
 \chapter{\uppercase{Background and Related Work}}
-% Page numbering handled by Chapter 1
-\doublespacing
-
-% ============================================================================
-% CHAPTER 2: BACKGROUND AND RELATED WORK
-% Scope: GNNs for vulnerability detection, LLMs for code security,
-%         conformal prediction, multi-agent systems, hybrid cascaded approaches.
-% NOTE: Pattern-based SAST, taint analysis, CodeQL, and CPGs were covered
-%       in Phase 1 Chapter 2 and are NOT duplicated here.
-% ============================================================================
 
 The preceding chapter established that static analysis tools suffer from
 false positive rates exceeding 90\% at scale~\cite{ghostsecurity2025},
-and that the resulting alert fatigue causes nearly half of all discovered
-vulnerabilities to remain unpatched for over twelve
-months~\cite{johnson2013}. We formulated three research questions
-targeting uncertainty-driven escalation, conformal coverage guarantees,
-and adversarial dual-agent validation. To ground these questions in the
-state of the art, this chapter surveys five areas that directly inform
-our framework design: graph neural networks for vulnerability detection
-(\S\ref{sec:gnn-lit}), large language models for code security
-(\S\ref{sec:llm-lit}), conformal prediction and calibrated uncertainty
-(\S\ref{sec:conformal-lit}), hybrid and cascaded detection systems
-(\S\ref{sec:hybrid-lit}), and the research gaps that our contributions
-address (\S\ref{sec:gaps}).
+and that alert fatigue leaves nearly half of discovered vulnerabilities
+unpatched for over twelve months~\cite{edgescan2025}. This chapter surveys
+four areas informing the proposed framework: graph neural networks for
+vulnerability detection (Section~\ref{sec:gnn-lit}), large language models for
+code security (Section~\ref{sec:llm-lit}), conformal prediction
+(Section~\ref{sec:conformal-lit}), and hybrid cascaded systems
+(Section~\ref{sec:hybrid-lit}). We then identify four research gaps
+(Section~\ref{sec:gaps}) that map directly to our contributions.
 
-% ============================================================================
-\section{\uppercase{Graph Neural Networks for Vulnerability Detection}}
+\section{\uppercase{GNN-Based Vulnerability Detection}}
 \label{sec:gnn-lit}
-% ============================================================================
 
-\subsection{From Sequential Tokens to Graph Representations}
+Traditional machine-learning approaches treat source code as a flat
+token sequence, discarding structural relationships (control flow, data
+dependence, function calls) that determine whether a pattern is
+exploitable~\cite{thapa2022}. Graph neural networks operate directly on
+Code Property Graphs (CPGs)~\cite{cpg2014}, propagating information
+along edges to learn representations encoding both syntactic form and
+semantic relationships.
 
-Traditional machine-learning approaches to vulnerability detection treat
-source code as a flat token sequence and apply convolutional or recurrent
-models~\cite{thapa2022}. This representation discards the structural
-relationships---control flow, data dependence, function calls---that
-determine whether a code pattern is actually exploitable. Code Property
-Graphs (CPGs), introduced by Yamaguchi et al.~\cite{cpg2014} and
-surveyed in our Phase~1 report, unify Abstract Syntax Trees, Control
-Flow Graphs, and Program Dependence Graphs into a single heterogeneous
-graph. Graph neural networks (GNNs) operate directly on these graph
-structures, propagating information along edges to learn representations
-that encode both syntactic form and semantic relationships.
+Devign~\cite{devign2019} trained a Gated Graph Neural Network on joint
+Abstract Syntax Tree (AST), Control Flow Graph (CFG), Data Flow Graph (DFG), and Natural Code Sequence (NCS) graphs from 27,318 functions, achieving 63.69\%
+accuracy but was limited by fixed-iteration message passing.
+Reveal~\cite{reveal2021} addressed class imbalance with triplet-loss
+training, showing that dataset quality matters as much as architecture.
+IVDetect~\cite{ivdetect2021} introduced interpretation-based detection
+through program slicing and GNN attention weights, providing line-level
+localization cues for developer triage. We adopt a similar principle: our
+node importance scores derived from GIN embeddings provide localization information
+propagated to the final report.
 
-\subsection{Foundational GNN Architectures}
+ReGVD~\cite{regvd2022} showed that Graph Isomorphism Networks with
+code-gadget representations achieved competitive F1 scores
+($\sim$0.62--0.68 on Devign). Xu et al.~\cite{xu2019gin} proved that
+GIN's injective sum aggregation is as expressive as the
+Weisfeiler-Leman graph isomorphism test, the theoretical ceiling for
+message-passing GNNs. We adopt GIN's injective aggregation with
+attention-based readout to retain localization capability.
 
-\textbf{Devign}~\cite{devign2019} was among the first to apply GNNs to
-vulnerability detection at scale. Zhou et al.\ constructed joint graphs
-combining AST, CFG, DFG, and Natural Code Sequence (NCS) edges, then
-trained a Gated Graph Neural Network (GGNN) on function-level
-classification. On a dataset of 27,318 functions from QEMU and FFmpeg,
-Devign achieved 63.69\% accuracy. While this result established the
-viability of graph-based detection, the absolute performance left
-substantial room for improvement, and the reliance on GGNN---which uses
-a fixed number of message-passing iterations---limited the model's
-ability to capture long-range dependencies in large functions.
+LineVul~\cite{linevul2022} applied a RoBERTa transformer to line-level
+prediction without CPG extraction, but treating code as a linear
+sequence discards structural distinctions such as sanitized versus
+unsanitized flows. GraphCodeBERT~\cite{graphcodebert2021} bridges this
+gap by incorporating data-flow information into pre-training. We use
+GraphCodeBERT as our feature extractor: each node receives a 768-dim
+embedding concatenated with 6 structural features, yielding
+774-dimensional input vectors for our GIN classifier.
 
-\textbf{Reveal}~\cite{reveal2021} (Chakraborty et al., IEEE TSE 2021)
-advanced the field by directly confronting the class imbalance problem
-that plagues vulnerability datasets. Real-world code is overwhelmingly
-non-vulnerable; na\"{\i}ve training produces classifiers biased toward
-the majority class. Reveal proposed a CPGNN architecture with
-triplet-loss training and data-rebalancing strategies, demonstrating that
-dataset quality matters as much as model architecture. Critically,
-Chakraborty et al.\ showed that existing datasets contained systematic
-label noise, an observation later amplified by the PrimeVul
-study~\cite{primevul2024}.
+PrimeVul~\cite{primevul2024} delivered the most consequential recent
+finding: a 7B-parameter model scoring 68.26\% F1 on BigVul achieved
+only 3.09\% F1 on rigorously deduplicated data. This motivates our use
+of conformal prediction (Section~\ref{sec:conformal-lit}), which provides
+coverage guarantees independent of raw accuracy.
 
-\textbf{IVDetect}~\cite{ivdetect2021} (Li et al., ESEC/FSE 2021)
-introduced interpretation-based vulnerability detection with program
-slicing. Rather than classifying an entire function, IVDetect identifies
-the specific statements contributing to a vulnerability through GNN
-attention weights. This line-level interpretability is valuable for
-developer triage, as it narrows the scope of manual review. We adopt a
-similar principle in our framework: the MiniGINv3 attention scores over
-CPG nodes provide localization cues that are propagated to the final
-SARIF report.
-
-\textbf{ReGVD}~\cite{regvd2022} (Nguyen et al., IEEE TSE 2022) revisited
-GNN design choices for vulnerability detection, evaluating multiple
-graph construction strategies and GNN backbones. Their key finding was
-that Graph Isomorphism Networks (GIN) with code-gadget representations
-achieved competitive F1 scores ($\sim$0.62--0.68 on Devign). This
-result is theoretically grounded: Xu et al.~\cite{xu2019gin} proved that
-GIN, with its injective sum aggregation, is as expressive as the
-Weisfeiler-Lehman (WL) graph isomorphism test---the theoretical ceiling
-for message-passing GNNs. In contrast, GAT uses attention-weighted mean
-aggregation, which is not injective and can conflate structurally
-distinct neighborhoods. We leverage this theoretical insight in our
-MiniGINv3 design: we adopt GIN's injective sum aggregation for its
-superior expressiveness, combined with attention-based readout to
-retain the localization capability required for vulnerability
-triage.
-
-\subsection{Transformer-Based Alternatives}
-
-\textbf{LineVul}~\cite{linevul2022} (Fu and Tantithamthavorn, MSR 2022)
-took a different approach, applying a RoBERTa-based transformer to
-vulnerability prediction at line-level granularity. Operating on the
-BigVul dataset, LineVul achieved strong reported F1 scores and
-demonstrated that pre-trained language models can capture vulnerability
-patterns without explicit graph construction. The key advantage of
-LineVul is simplicity: it requires no CPG extraction, making it
-applicable to any language with a tokenizer. The key disadvantage is
-that it treats code as a linear token sequence, discarding the structural
-information that distinguishes, for example, a sanitized input flow from
-an unsanitized one.
-
-\textbf{GraphCodeBERT}~\cite{graphcodebert2021} (Guo et al., ICLR 2021)
-bridges the gap between sequential and structural representations by
-incorporating data-flow information into the pre-training objective.
-Unlike CodeBERT~\cite{codebert2020}, which treats code as natural
-language, GraphCodeBERT learns edge-level data-flow relationships during
-pre-training, producing embeddings that are structurally aware without
-requiring a full CPG at inference time. We use GraphCodeBERT as the
-feature extractor in our graph pipeline: each code node receives a
-768-dimensional embedding from GraphCodeBERT, concatenated with 6
-structural features (normalized in-degree, normalized out-degree, sink indicator,
-source indicator, normalized BFS depth, and language identifier), yielding 774-dimensional
-input vectors for MiniGINv3.
-
-\subsection{The Benchmark Inflation Problem}
-
-The most consequential recent finding in this area comes from
-\textbf{PrimeVul}~\cite{primevul2024} (Ding et al., ICSE 2025), which
-demonstrated that reported GNN and transformer performance on standard
-benchmarks is dramatically inflated. A 7B-parameter model that scored
-68.26\% F1 on the BigVul benchmark achieved only 3.09\% F1 on
-PrimeVul's rigorously deduplicated C/C++ dataset. The collapse is caused
-by data leakage: near-duplicate functions appear in both training and
-test sets, and models memorize surface patterns rather than learning
-genuine vulnerability semantics. This finding has two implications for
-our work. First, we cannot rely on benchmark F1 as the sole evaluation
-metric; any claimed detection performance must be validated on
-deduplicated data with temporal splits. Second, the fragility of
-point-prediction models motivates our use of conformal prediction
-(\S\ref{sec:conformal-lit}), which provides coverage guarantees
-independent of the model's raw accuracy.
-
-\subsection{Comparative Analysis}
-
-Table~\ref{tab:gnn-lit} summarizes the GNN-based approaches discussed
-above. The consistent theme across these works is a trade-off between
-representation richness and practical deployment. Richer graph
-representations (full CPGs) improve detection but require expensive
-extraction tooling. Simpler representations (token sequences, partial
-ASTs) are more portable but miss structural patterns. None of these
-systems provide calibrated uncertainty quantification---they output point
-predictions without indicating when the model is unsure.
-
-\begin{table}[H]
-\centering
-\caption{Comparison of GNN-based vulnerability detection approaches.}
-\label{tab:gnn-lit}
-\small
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{p{1.8cm} p{2.0cm} p{1.8cm} p{1.5cm} p{2.0cm} p{3.2cm}}
-\toprule
-\textbf{Approach} & \textbf{Architecture} & \textbf{Dataset} & \textbf{Metric} & \textbf{Representation} & \textbf{Key Limitation} \\
-\midrule
-Devign \cite{devign2019} & GGNN & QEMU/FFmpeg & 63.7\% Acc & AST+CFG+DFG +NCS & Fixed iteration count; no uncertainty \\
-Reveal \cite{reveal2021} & CPGNN + triplet loss & Reveal dataset & Improved over baselines & Full CPG & Requires Joern; no confidence score \\
-IVDetect \cite{ivdetect2021} & GNN + slicing & BigVul & F1 reported & PDG slices & Expensive slicing; single language \\
-ReGVD \cite{regvd2022} & GIN on gadgets & Devign & $\sim$0.62--0.68 F1 & Code gadgets & No inter-procedural flow \\
-LineVul \cite{linevul2022} & RoBERTa & BigVul & Line-level F1 & Token sequence & No structural information \\
-GraphCodeBERT \cite{graphcodebert2021} & Transformer + DFG & CodeSearchNet & Improved over CodeBERT & Tokens + data flow & Pre-training only; no CPG \\
-PrimeVul \cite{primevul2024} & Evaluation study & PrimeVul & 3.09\% F1 (realistic) & Multiple & Evaluation, not a detection method \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-% ============================================================================
 \section{\uppercase{Large Language Models for Code Security}}
 \label{sec:llm-lit}
-% ============================================================================
 
-\subsection{LLMs as Vulnerability Detectors}
+LLM-based vulnerability detection follows two paradigms:
+\emph{classification} (labeling code as vulnerable or safe) and
+\emph{reasoning} (explaining exploitability). The classification paradigm
+inherits the benchmark-inflation problem: GPT-3.5 and GPT-4 performed
+``akin to random guessing'' on PrimeVul's most stringent
+setting~\cite{primevul2024}.
 
-The application of large language models to vulnerability detection
-follows two paradigms: \emph{classification}, where the LLM labels code
-as vulnerable or safe, and \emph{reasoning}, where the LLM explains
-whether a vulnerability is exploitable. The classification paradigm
-inherits the same benchmark-inflation problem identified by
-PrimeVul~\cite{primevul2024}: GPT-3.5 and GPT-4 performed at levels
-``akin to random guessing'' on PrimeVul's most stringent evaluation
-setting. The reasoning paradigm is more promising but introduces its own
-failure modes.
+LLM4Vuln~\cite{llm4vuln2024} decomposes vulnerability reasoning into
+focused sub-tasks, reducing hallucination over single-prompt approaches.
+We adopt a similar decomposition: our Attacker and Defender agents each
+focus on a specific analytical perspective.
+Steenhoek et al.~\cite{steenhoek2024} confirmed that LLMs exhibit
+47--76\% inconsistency across repeated runs, underscoring the need for
+consensus mechanisms. VulnHuntr~\cite{vulnhuntr2024} demonstrated that
+LLM-driven autonomous hunting can discover real zero-day
+vulnerabilities, but its lack of structured validation means findings
+still require manual confirmation.
 
-\textbf{LLM4Vuln}~\cite{llm4vuln2024} (Sun et al., 2024) proposed a
-unified evaluation framework that decouples vulnerability reasoning into
-sub-tasks: detection, classification, and explanation. By structuring
-the LLM interaction as a multi-role pipeline, LLM4Vuln achieved improved
-consistency over single-prompt approaches. The framework demonstrated
-that breaking complex security analysis into focused sub-tasks reduces
-hallucination and improves the quality of generated explanations. We
-adopt a similar decomposition principle: our Attacker and Defender agents
-each focus on a specific analytical perspective rather than attempting
-holistic assessment in a single prompt.
+Single-model inference suffers from confirmation bias: once the model
+commits to an assessment, subsequent reasoning reinforces rather than
+challenges it. Du et al.~\cite{multiagentdebate2023} showed that
+multi-agent debate improves factual accuracy by 20--40\%, and
+Liang et al.~\cite{divergentthinking2023} extended this with a
+``tit for tat'' protocol showing that productive disagreement yields
+better outcomes than artificial consensus. These findings motivate our
+Attacker vs.\ Defender design, mapping to the red team / blue team
+methodology standard in security assessment but, to our knowledge, never
+applied to automated vulnerability triage.
 
-\textbf{Steenhoek et al.}~\cite{steenhoek2024} (2024) conducted a
-systematic study of LLM capabilities and limitations for vulnerability
-detection. Their findings confirmed that LLMs exhibit high
-non-determinism---producing inconsistent classifications across repeated
-runs---and that performance degrades on code patterns absent from
-training data. These results underline the need for consensus mechanisms
-that stabilize LLM outputs, which is precisely the function of our
-dual-agent protocol.
+We supplement LLM reasoning with retrieval-augmented generation (RAG)
+over 200,000+ NVD entries~\cite{nvd2023} and 900+ CWE definitions,
+indexed via hybrid FAISS and BM25 retrieval with Reciprocal Rank Fusion.
+Both agents receive identical domain-specific context, grounding analysis
+in factual knowledge rather than parametric memory.
 
-\textbf{VulnHuntr}~\cite{vulnhuntr2024} (Protectai, 2024) demonstrated
-that LLM-driven autonomous vulnerability hunting can discover real
-zero-day vulnerabilities in open-source Python projects. VulnHuntr uses
-iterative code traversal guided by LLM reasoning to trace data flows
-across files and identify injection, deserialization, and SSRF
-vulnerabilities. The system's success validates the LLM-as-reasoning-engine
-approach, but its lack of structured validation means that reported
-findings still require manual confirmation. In contrast, our framework
-provides structured evidence from both the Attacker and Defender agents,
-producing an auditable decision trail.
-
-\subsection{Benchmark Fragility}
-
-Thapa et al.~\cite{thapa2022} (ACSAC 2022) compared transformer-based
-models (BERT, RoBERTa, GPT-2) on vulnerability detection, reporting
-competitive results on standard datasets. However, the PrimeVul
-study~\cite{primevul2024} subsequently demonstrated that these results
-do not transfer to realistic data. The gap between benchmark and
-real-world performance---from 68\% F1 to 3\% F1---represents the single
-most important finding in recent vulnerability detection research. Any
-system that relies exclusively on a single model's classification output,
-whether GNN or LLM, inherits this fragility. Our cascade architecture
-mitigates the risk by combining three independent analysis modalities,
-each with different failure modes, and by using conformal prediction to
-quantify the GNN's uncertainty rather than trusting its point prediction.
-
-\subsection{Multi-Agent LLM Systems}
-
-Single-model LLM inference suffers from confirmation bias: once the
-model commits to an initial assessment, subsequent reasoning tends to
-reinforce rather than challenge it. Multi-agent debate addresses this
-limitation by introducing adversarial perspectives.
-
-\textbf{Du et al.}~\cite{multiagentdebate2023} (2023) demonstrated that
-multi-agent debate---where multiple LLM instances argue over an
-answer---improves factual accuracy by 20--40\% over single-model
-inference across mathematical reasoning, strategic analysis, and
-factual question-answering tasks. The mechanism works because divergent
-initial positions force each agent to generate counter-arguments,
-exposing reasoning errors that a single model would propagate
-unchallenged.
-
-\textbf{Liang et al.}~\cite{divergentthinking2023} (2023) extended this
-work by explicitly encouraging divergent thinking in multi-agent debate.
-Their ``tit for tat'' protocol, where agents take turns challenging each
-other's positions, improved performance on tasks requiring creative
-reasoning. The key insight---that productive disagreement yields better
-outcomes than artificial consensus---directly motivates our Attacker vs.\
-Defender design, where the two agents are structurally incentivized to
-reach opposing conclusions before a consensus engine reconciles them.
-
-Our dual-agent protocol adapts these general multi-agent findings to
-the specific structure of security analysis. The Attacker agent is
-prompted with an offensive framing: given a code finding, construct a
-concrete exploit scenario, identify the attack surface, and assess
-exploitability. The Defender agent receives a defensive framing: identify
-sanitizers, access controls, framework protections, and assess whether
-the vulnerability is mitigated. This adversarial structure maps naturally
-to the red team / blue team methodology that is standard practice in
-security assessment, but---to our knowledge---has not previously been
-applied to automated LLM-based vulnerability triage.
-
-\subsection{Retrieval-Augmented Generation for Security}
-
-LLMs possess broad but shallow knowledge of specific vulnerability
-patterns. A model may know the general concept of SQL injection but lack
-details about CVE-2023-specific bypass techniques or CWE-79 variant
-classifications. Retrieval-Augmented Generation (RAG) addresses this by
-injecting relevant knowledge at inference time.
-
-Our framework maintains a knowledge base of over 200,000 NVD
-entries~\cite{nvd2023} and 900+ CWE definitions, indexed using a hybrid
-FAISS vector store and BM25 keyword retrieval with Reciprocal Rank
-Fusion. When a finding escalates to the LLM stage, the RAG system
-retrieves the most relevant CVE examples and CWE descriptions, providing
-both agents with identical domain-specific context. This ensures that
-the Attacker agent's exploit analysis and the Defender agent's
-mitigation analysis are grounded in the same factual knowledge base
-rather than depending on the LLM's parametric memory alone.
-
-\subsection{Comparative Analysis}
-
-Table~\ref{tab:llm-lit} summarizes the LLM-based approaches discussed
-above. The central tension in this literature is between the semantic
-reasoning power of LLMs and their unreliability as standalone
-classifiers. LLMs excel at explaining \emph{why} code might be
-vulnerable but fail at reliably determining \emph{whether} it is
-vulnerable. Our framework exploits this asymmetry: we use the LLM as a
-reasoning engine for the hardest cases (those that survived SAST and GNN
-stages) rather than as a first-line classifier.
+The central tension is that LLMs excel at explaining \emph{why} code
+might be vulnerable but fail at reliably determining \emph{whether} it
+is. Our framework exploits this asymmetry by using the LLM as a
+reasoning engine for the hardest cases, those surviving SAST and GNN
+stages, rather than as a first-line classifier.
 
 \begin{table}[H]
 \centering
-\caption{Comparison of LLM-based approaches for code security.}
-\label{tab:llm-lit}
+\caption{ML approaches for vulnerability detection.}
+\label{tab:ml-lit}
 \small
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{p{2.0cm} p{1.8cm} p{1.6cm} p{3.0cm} p{3.5cm}}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{p{2.0cm} p{1.5cm} p{2.5cm} p{4.0cm}}
 \toprule
-\textbf{Approach} & \textbf{Model(s)} & \textbf{Dataset} & \textbf{Key Finding} & \textbf{Key Limitation} \\
+\textbf{Approach} & \textbf{Type} & \textbf{Key Metric} & \textbf{Key Limitation} \\
 \midrule
-LLM4Vuln \cite{llm4vuln2024} & Multi-role LLMs & Custom & Decomposed reasoning improves consistency & No adversarial validation \\
-PrimeVul \cite{primevul2024} & GPT-3.5/4, 7B models & PrimeVul & 68\% F1 $\to$ 3\% F1 on realistic data & Evaluation study, not a solution \\
-VulnHuntr \cite{vulnhuntr2024} & LLM-driven & Python OSS & Real 0-days discovered & No structured validation; manual confirmation needed \\
-Steenhoek et al.\ \cite{steenhoek2024} & Multiple LLMs & Multiple & 47--76\% inconsistency across runs & Study, not a detection method \\
-Thapa et al.\ \cite{thapa2022} & BERT, RoBERTa, GPT-2 & Mixed & Competitive on benchmarks & Results do not transfer to realistic data \\
-Du et al.\ \cite{multiagentdebate2023} & Multi-agent debate & Reasoning tasks & 20--40\% accuracy improvement & Not applied to code security \\
-Liang et al.\ \cite{divergentthinking2023} & Divergent debate & Reasoning tasks & Divergent positions improve outcomes & Not applied to code security \\
+Devign \cite{devign2019}          & GNN   & 63.7\% Acc             & Fixed iterations; no uncertainty \\
+Reveal \cite{reveal2021}          & GNN   & Improved baselines      & Requires Joern; no confidence \\
+ReGVD \cite{regvd2022}            & GNN   & 0.62--0.68 F1          & No inter-procedural flow \\
+LineVul \cite{linevul2022}        & Transf. & Line-level F1        & No structural information \\
+PrimeVul \cite{primevul2024}      & Eval. & 3.09\% F1 (real)       & Evaluation only; not detection \\
+LLM4Vuln \cite{llm4vuln2024}     & LLM   & Reduced hallucination  & No adversarial validation \\
+VulnHuntr \cite{vulnhuntr2024}   & LLM   & Real 0-days found      & No structured validation \\
+Steenhoek \cite{steenhoek2024}   & LLM   & 47--76\% inconsistency & Study only; not detection \\
+Du et al.\ \cite{multiagentdebate2023}  & LLM   & 20--40\% accuracy gain & Not applied to code security \\
+Liang et al.\ \cite{divergentthinking2023} & LLM & Disagreement helps & Not applied to code security \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-% ============================================================================
 \section{\uppercase{Conformal Prediction and Calibrated Uncertainty}}
 \label{sec:conformal-lit}
-% ============================================================================
 
-\subsection{The Calibration Problem in Neural Networks}
+Modern deep neural networks are poorly calibrated.
+Guo et al.~\cite{guocalibration2017} showed that as network depth and
+width increase, high-confidence predictions are frequently wrong.
+Post-hoc methods such as temperature scaling improve calibration on
+average but provide no per-instance guarantees.
 
-Modern deep neural networks are poorly calibrated: the probability
-scores they output do not correspond to true likelihoods of correctness.
-\textbf{Guo et al.}~\cite{guocalibration2017} (ICML 2017) demonstrated
-this systematically, showing that as network depth and width increase,
-calibration worsens---high-confidence predictions are frequently wrong.
-In safety-critical applications such as vulnerability detection, this
-miscalibration is dangerous: a model that reports 95\% confidence in a
-``safe'' classification may be wrong 30\% of the time, leading to
-undetected vulnerabilities in production code.
-
-Post-hoc calibration methods such as temperature scaling~\cite{guocalibration2017}
-and Platt scaling improve calibration on average but provide no
-per-instance guarantees. A calibrated model may still produce arbitrarily
-overconfident predictions on individual inputs that fall outside the
-training distribution---precisely the ``novel code patterns'' that
-represent zero-day vulnerabilities.
-
-\subsection{Conformal Prediction: Distribution-Free Guarantees}
-
-Conformal prediction, formalized by \textbf{Vovk et al.}~\cite{vovk2005}
-(2005), provides a fundamentally different approach to uncertainty
-quantification. Rather than producing a single prediction, conformal
-prediction outputs a \emph{prediction set}---a subset of all possible
-labels that is guaranteed to contain the true label with a user-specified
-probability:
-
+Conformal prediction, formalized by Vovk et al.~\cite{vovk2005}, offers
+a fundamentally different approach: rather than a single prediction, it
+outputs a \emph{prediction set} guaranteed to contain the true label
+with user-specified probability:
+%
 \begin{equation}
 P\bigl(Y_{\text{true}} \in \mathcal{C}(X)\bigr) \geq 1 - \alpha
 \label{eq:conformal_guarantee}
 \end{equation}
+%
+\noindent where $\mathcal{C}(X)$ is the prediction set and $\alpha$ is
+the error rate. This guarantee is \emph{distribution-free}, holds in
+finite samples, and requires only exchangeability between calibration and
+test data~\cite{angelopoulos2023}.
 
-\noindent where $\mathcal{C}(X)$ is the prediction set for input $X$
-and $\alpha$ is the user-specified error rate. This guarantee is
-\emph{distribution-free}: it holds for any data distribution, with the
-only requirement being that the calibration data is exchangeable with the
-test data. The guarantee holds in finite samples---no asymptotic
-assumptions are needed.
+Romano et al.~\cite{romano2020} introduced Adaptive Prediction Sets
+(APS), using sorted softmax probabilities as conformity scores and
+accumulating classes until cumulative probability exceeds $1 - \hat{q}$.
+APS produces smaller sets for confident inputs and larger sets for
+uncertain ones. In our cascade, a singleton set resolves the finding at
+Stage~2, while a multi-element set triggers escalation to the LLM stage;
+the singleton rate directly determines cascade efficiency.
 
-\textbf{Angelopoulos and Bates}~\cite{angelopoulos2023} (2023) provided
-a tutorial treatment that made conformal prediction accessible to the
-machine learning community. They presented the split-conformal method,
-where a held-out calibration set is used to compute conformity scores,
-and a quantile threshold $\hat{q}$ is selected such that the empirical
-coverage on the calibration set meets the target $1 - \alpha$. At test
-time, the prediction set includes all labels whose conformity scores
-exceed $\hat{q}$.
-
-\subsection{Adaptive Prediction Sets}
-
-The basic conformal prediction method can produce either very large sets
-(uninformative) or very small sets (precise) depending on the score
-function. \textbf{Romano et al.}~\cite{romano2020} (NeurIPS 2020)
-introduced Adaptive Prediction Sets (APS), which use the model's own
-softmax probabilities as conformity scores, sorted in decreasing order.
-The prediction set is constructed by accumulating classes until the
-cumulative probability exceeds $1 - \hat{q}$. APS produces smaller
-prediction sets for inputs where the model is confident (sharp softmax
-distributions) and larger sets where the model is uncertain (flat
-distributions).
-
-The APS method has a direct operational interpretation in our cascade.
-For a binary vulnerability classifier:
-
-\begin{itemize}
-    \item A \textbf{singleton set} $\{$\texttt{safe}$\}$ or
-          $\{$\texttt{vulnerable}$\}$ indicates that the GNN is
-          confident enough to resolve the finding at Stage~2, because the
-          conformal guarantee ensures the true label is included with
-          probability $\geq 1 - \alpha$.
-    \item A \textbf{two-element set} $\{$\texttt{safe},
-          \texttt{vulnerable}$\}$ indicates genuine model uncertainty:
-          both labels are plausible, and the finding must be escalated to
-          Stage~3 (LLM dual-agent) for semantic resolution.
-\end{itemize}
-
-\noindent The singleton rate---the fraction of inputs receiving
-single-label prediction sets---directly determines cascade efficiency.
-A higher singleton rate means more findings are resolved at Stage~2
-without expensive LLM calls.
-
-\subsection{Conformal Prediction Under Distribution Shift}
-
-A practical concern for deploying conformal prediction in vulnerability
-detection is that the test distribution may differ from the calibration
-distribution. New code patterns, frameworks, and vulnerability classes
-appear continuously; the exchangeability assumption may be violated.
-\textbf{Barber et al.}~\cite{barber2023} (Annals of Statistics, 2023)
-extended conformal prediction beyond the exchangeability assumption,
-providing coverage guarantees under distribution shift through
-likelihood-ratio reweighting. Their results show that coverage can be
-maintained even when the test distribution drifts from calibration data,
-at the cost of wider prediction sets.
-
-For our framework, this means that when the GNN encounters code patterns
-dissimilar to its training data, the APS prediction set will
-automatically widen (producing the ambiguous two-element set), triggering
-escalation to the LLM stage. The conformal layer thus acts as an
-automatic novelty detector: truly novel code is escalated by
-construction, not by a hand-tuned threshold.
-
-\subsection{Conformal Prediction in Security: A Gap}
-
-We surveyed the conformal prediction literature across medical
-imaging~\cite{angelopoulos2023}, autonomous driving, natural language
-inference, and drug discovery. To our knowledge, no published work has
-applied conformal prediction to vulnerability detection or static
-analysis output triage. Existing vulnerability detection systems use
-either hard classification thresholds (vulnerable if $p > 0.5$) or
-ad-hoc confidence bins without formal coverage guarantees. Our
-application of APS conformal prediction to the GNN output layer,
+To our knowledge, no published work has applied conformal prediction to
+vulnerability detection. Our application of APS to the GNN output layer,
 using singleton versus multi-label sets to drive cascade escalation,
-is---to the best of our knowledge---the first such application in the
-code security domain.
+represents the first such application in the code security domain.
 
-% ============================================================================
 \section{\uppercase{Hybrid and Cascaded Detection Approaches}}
 \label{sec:hybrid-lit}
-% ============================================================================
 
-\subsection{The Case for Multi-Stage Analysis}
+The limitations in Section~\ref{sec:gnn-lit} and Section~\ref{sec:llm-lit} motivate
+combining multiple analysis modalities. No single technique dominates
+across all vulnerability types; a multi-stage architecture routing
+findings to the appropriate depth can exploit each modality's strengths.
 
-The GNN and LLM limitations documented in \S\ref{sec:gnn-lit}
-and~\S\ref{sec:llm-lit} motivate combining multiple analysis modalities.
-No single technique---pattern matching, graph analysis, or LLM
-reasoning---dominates across all vulnerability types. Pattern matching
-excels at detecting known-bad API usage (hardcoded secrets, weak
-cryptographic algorithms) but fails on context-dependent vulnerabilities.
-Graph analysis captures structural properties (taint flow paths,
-control-flow reachability) but struggles with semantic context
-(is this sanitizer sufficient for this framework?). LLM reasoning
-provides semantic understanding but at high cost and with unreliable
-consistency. A multi-stage architecture that routes findings to the
-appropriate analysis depth based on their characteristics can exploit
-the complementary strengths of each modality.
+IRIS~\cite{iris2025} applies GPT-4 to all CodeQL findings;
+Vulnhalla~\cite{vulnhalla2025} filters CodeQL's haystack with LLM
+adjudication; ZeroFalse~\cite{zerofalse2025} sends every SAST trace to
+an LLM; LLMxCPG~\cite{llmxcpg2025} augments LLM reasoning with CPG
+context. All four process findings uniformly without routing, lack
+conformal prediction, and offer no CWE-specific fusion.
 
-\subsection{Existing Hybrid Systems}
-
-\textbf{IRIS}~\cite{iris2025} (Li et al., ICLR 2025) augments CodeQL's
-static analysis with LLM-inferred taint specifications. When CodeQL's
-built-in models lack knowledge of a library's taint propagation behavior,
-IRIS queries an LLM (GPT-4 or DeepSeek-Coder 7B) to infer whether
-specific API methods are sources, sinks, or sanitizers. This approach
-increased CodeQL's true positive detections by 103.7\% on
-CWE-Bench-Java (120 real-world vulnerabilities). IRIS demonstrates that
-LLMs can augment static analysis effectively, but it applies the LLM
-\emph{uniformly} to all library specifications---there is no mechanism
-to determine which queries warrant LLM augmentation and which do not.
-Every finding incurs the same LLM cost regardless of analytical
-difficulty.
-
-\textbf{Vulnhalla} (CyberArk, 2025) post-filters CodeQL output through
-an LLM-guided questioning protocol. For each CodeQL finding, the LLM
-is presented with the flagged code and asked a structured series of
-questions to determine whether the vulnerability is genuine. Vulnhalla
-reported up to 96\% false positive reduction for specific CWE categories
-on real GitHub repositories. The system validates our premise that LLM
-reasoning can dramatically reduce SAST false positives, but it processes
-\emph{every} finding identically through the LLM pipeline. For a scan
-producing 1,000 findings, Vulnhalla makes 1,000 LLM calls---whereas our
-cascade would make approximately 50, because 80\% of findings are
-resolved at the SAST stage and a further 15\% at the GNN stage.
-
-\textbf{ZeroFalse} (2025) enriches SAST trace data with contextual
-information before submitting it to an LLM for adjudication. The system
-reconstructs flow-sensitive traces from SAST output, adds surrounding
-code context, and prompts a reasoning-oriented LLM to determine whether
-each trace represents a true positive. ZeroFalse achieved 0.912 F1 on
-the OWASP Java Benchmark and 0.955 F1 on an open-vulnerability dataset.
-Like Vulnhalla, ZeroFalse sends all findings to the LLM without
-selective escalation.
-
-\textbf{LLMxCPG} (Lekssays et al., USENIX Security 2025) combines CPG
-analysis with LLM classification in a two-phase architecture. In the
-first phase, the LLM generates Joern queries to extract relevant CPG
-slices. In the second phase, the LLM classifies the extracted slices as
-vulnerable or safe. The approach achieved 15--40\% F1 improvement over
-baselines on C/C++ code. LLMxCPG's use of CPG slicing to provide
-structured context to the LLM validates our graph-then-LLM ordering,
-but its two-phase design processes all findings through both phases
-without cost-aware routing.
-
-\subsection{Architectural Patterns}
-
-Examining these systems reveals a consistent architectural pattern: all
-existing hybrid approaches are \emph{two-stage} (SAST + LLM or
-CPG + LLM) and \emph{uniform}---every finding receives the same
-analysis regardless of its analytical difficulty. None incorporate a
-GNN as an intermediate analysis layer. None use uncertainty scores to
-drive escalation decisions. None provide formal coverage guarantees on
-their predictions. Table~\ref{tab:gap-positioning} in
-Section~\ref{sec:gaps} quantifies these differences.
-
-% ============================================================================
 \section{\uppercase{Research Gaps and Positioning}}
 \label{sec:gaps}
-% ============================================================================
 
-The literature surveyed in the preceding sections reveals four
-concrete gaps in the current state of the art. Each gap directly
-motivates a corresponding contribution of our framework.
+The preceding sections reveal four concrete gaps, each motivating a
+corresponding contribution.
 
-\subsection{Gap 1: No Selective Escalation Between Analysis Modalities}
+\textbf{Gap~1: No Selective Escalation Between Analysis Modalities.}
+Every hybrid system reviewed applies its most expensive analysis
+uniformly, yet the vast majority of SAST findings are clearly true or
+false positives. Our \textbf{Contribution~1} addresses this with a
+4-factor uncertainty score ($U = 0.4 \cdot U_{\text{conf}} + 0.3 \cdot
+U_{\text{comp}} + 0.2 \cdot U_{\text{nov}} + 0.1 \cdot
+U_{\text{confl}} + \delta_{\text{sev}}$) that routes findings through a
+3-stage cascade, resolving $\sim$75--80\% at the SAST stage and reducing
+LLM calls by approximately 85\%.
 
-Every hybrid system reviewed---IRIS, Vulnhalla, ZeroFalse,
-LLMxCPG---applies its most expensive analysis stage uniformly to all
-findings. IRIS queries the LLM for every unmodeled library.
-Vulnhalla sends every CodeQL finding to its LLM pipeline. ZeroFalse
-enriches every SAST trace for LLM adjudication. This uniform
-application ignores a fundamental observation: the vast majority of
-SAST findings are either clearly true positives (e.g., hardcoded
-passwords) or clearly false positives (e.g., sanitized inputs) that do
-not require expensive analysis. Only a minority of findings occupy an
-ambiguous middle ground that benefits from deeper reasoning.
+\textbf{Gap~2: No Calibrated Uncertainty in Vulnerability Detection.}
+All detectors produce point predictions without formal calibration.
+Guo et al.~\cite{guocalibration2017} showed neural confidence scores are
+systematically miscalibrated; PrimeVul~\cite{primevul2024} demonstrated
+that vulnerability models are particularly fragile on out-of-distribution
+data. Our \textbf{Contribution~2} applies APS conformal
+prediction~\cite{romano2020} to the GNN output layer, providing the
+guarantee in Equation~\ref{eq:conformal_guarantee} and replacing
+arbitrary thresholds with a principled decision boundary.
 
-No published system uses a \emph{quantified uncertainty measure} to
-determine which findings warrant escalation. Our \textbf{Contribution~1}
-addresses this gap with a 4-factor uncertainty scoring model
-($U = 0.4 \cdot U_{\text{conf}} + 0.3 \cdot U_{\text{comp}} + 0.2 \cdot
-U_{\text{nov}} + 0.1 \cdot U_{\text{confl}} + \delta_{\text{sev}}$)
-that routes findings through a 3-stage cascade. In our design, findings
-with $U < 0.5$ are resolved at the SAST stage ($\sim$75--80\% of all
-findings), reducing LLM API calls by approximately 85\% compared to
-uniform approaches.
+\textbf{Gap~3: LLM Triage Lacks Adversarial Validation.}
+Existing LLM triage uses a single model or single-perspective prompt,
+inheriting confirmation bias~\cite{steenhoek2024}. Multi-agent
+debate~\cite{multiagentdebate2023, divergentthinking2023} improves
+accuracy by 20--40\% but has not been applied to code security. Our
+\textbf{Contribution~3} introduces an adversarial dual-agent protocol:
+an Attacker constructs exploits while a Defender identifies mitigations,
+and a consensus engine reconciles their perspectives with structured
+evidence.
 
-\subsection{Gap 2: No Calibrated Uncertainty in Vulnerability Detection}
+\textbf{Gap~4: Fixed Fusion Weights Ignore CWE-Specific Behavior.}
+Hybrid systems use fixed combination strategies, ignoring the empirical
+fact that injection vulnerabilities benefit most from LLM reasoning,
+cryptographic weaknesses from SAST, and memory safety issues from graph
+analysis. Our \textbf{Contribution~4} uses CWE-adaptive score fusion
+($f = \alpha \cdot S_{\text{SAST}} + \beta \cdot S_{\text{GIN}} +
+\gamma \cdot S_{\text{LLM}}$) with per-CWE configured weights based on domain expertise.
 
-All GNN-based and LLM-based vulnerability detectors reviewed in this
-chapter produce point predictions---a single label or a probability
-score---without formal calibration. Guo et al.~\cite{guocalibration2017}
-showed that neural network confidence scores are systematically
-miscalibrated, and PrimeVul~\cite{primevul2024} demonstrated that
-vulnerability detection models are particularly fragile on
-out-of-distribution data. A model reporting 90\% confidence that code
-is safe may be wrong far more than 10\% of the time.
-
-No vulnerability detection tool provides distribution-free coverage
-guarantees. Our \textbf{Contribution~2} addresses this gap by applying
-Adaptive Prediction Sets (APS)~\cite{romano2020} to the GNN output
-layer, providing the guarantee in Equation~\ref{eq:conformal_guarantee}.
-When the model is uncertain, the prediction set automatically expands,
-triggering escalation. This replaces arbitrary confidence thresholds
-with a mathematically principled decision boundary.
-
-\subsection{Gap 3: LLM Triage Lacks Adversarial Validation}
-
-Existing LLM-based triage systems (LLM4Vuln, VulnHuntr, Vulnhalla,
-ZeroFalse) use a single LLM instance or a single-perspective prompt to
-classify findings. Single-model inference is susceptible to confirmation
-bias~\cite{steenhoek2024}: the model commits to an initial assessment
-and reinforces it in subsequent reasoning. Multi-agent
-debate~\cite{multiagentdebate2023, divergentthinking2023} has been shown
-to improve LLM accuracy by 20--40\%, but this technique has not been
-applied to code security triage.
-
-Our \textbf{Contribution~3} addresses this gap with an adversarial
-dual-agent protocol. The Attacker agent (red team) attempts to
-construct exploits; the Defender agent (blue team) identifies
-mitigations. A 5-rule consensus engine reconciles their perspectives
-into a final verdict with structured evidence. This design maps
-directly to the adversarial thinking (red team / blue team) that is
-standard practice in manual security assessment but absent from
-automated tools.
-
-\subsection{Gap 4: Fixed Fusion Weights Ignore CWE-Specific Behavior}
-
-Hybrid systems that combine outputs from multiple analysis stages
-typically use fixed combination strategies: binary voting, simple
-averaging, or a single set of learned weights. This approach ignores the
-empirical observation that different vulnerability types respond
-differently to different analysis methods. Injection vulnerabilities
-(CWE-89, CWE-78, CWE-79) require semantic understanding of
-sanitization context and are best served by LLM reasoning.
-Cryptographic weaknesses (CWE-327, CWE-328) are identifiable by
-syntactic patterns and are best served by SAST. Memory safety
-vulnerabilities (CWE-416, CWE-476) require structural analysis of
-allocation and deallocation paths and are best served by graph analysis.
-
-No published system calibrates its fusion weights per CWE category.
-Our \textbf{Contribution~4} addresses this gap with CWE-adaptive
-score fusion, where the final confidence score
-$f = \alpha \cdot S_{\text{SAST}} + \beta \cdot S_{\text{GIN}} +
-\gamma \cdot S_{\text{LLM}}$ uses per-CWE calibrated weights
-$(\alpha, \beta, \gamma)$ that reflect the empirical strengths of each
-stage for that vulnerability class.
-
-\subsection{Gap--Contribution Positioning}
-
-Table~\ref{tab:gap-positioning} positions our framework against
-existing systems across six capability dimensions. A checkmark
-(\checkmark) indicates that the system provides the capability; a
-dash (---) indicates absence.
+Table~\ref{tab:gap-positioning} positions the proposed framework against
+existing systems across six capability dimensions.
 
 \begin{table}[H]
 \centering
-\caption{Research gap positioning matrix. SEC-C is the only system providing all six capabilities.}
+\caption{Comparative positioning of vulnerability analysis systems across cascade design, uncertainty handling, LLM strategy, and fusion approach.}
 \label{tab:gap-positioning}
 \small
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{p{2.2cm} c c c c c c}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{@{}p{1.6cm} p{1.3cm} p{1.3cm} p{1.4cm} p{1.4cm} p{1.0cm} p{2.2cm}@{}}
 \toprule
-\textbf{System} & \rotatebox{70}{\textbf{Uncertainty Routing}} & \rotatebox{70}{\textbf{Conformal Prediction}} & \rotatebox{70}{\textbf{Dual-Agent Validation}} & \rotatebox{70}{\textbf{CWE-Adaptive Fusion}} & \rotatebox{70}{\textbf{Multi-Language ($\geq$5)}} & \rotatebox{70}{\textbf{Free-Tier Operation}} \\
+\textbf{System} & \textbf{Cascade} & \textbf{Uncertainty} & \textbf{LLM Strategy} & \textbf{Score Fusion} & \textbf{Langs} & \textbf{Key Limitation} \\
 \midrule
-Semgrep \cite{semgrep2024} & --- & --- & --- & --- & \checkmark & \checkmark \\
-CodeQL \cite{codeql2024}   & --- & --- & --- & --- & \checkmark & \checkmark \\
-Devign \cite{devign2019}   & --- & --- & --- & --- & --- & --- \\
-LineVul \cite{linevul2022} & --- & --- & --- & --- & --- & --- \\
-IRIS                       & --- & --- & --- & --- & --- & --- \\
-Vulnhalla                  & --- & --- & --- & --- & --- & --- \\
-ZeroFalse                  & --- & --- & --- & --- & --- & --- \\
-LLMxCPG                    & --- & --- & --- & --- & --- & --- \\
-\textbf{SEC-C (Ours)}      & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark & \checkmark \\
+Semgrep~\cite{semgrep2024} & Single-pass & None & None & Rule severity & 30+ & No ML; 74.8\% FP \\
+CodeQL~\cite{codeql2024} & Single-pass & None & None & Query severity & 10+ & No ML; 68.2\% FP \\
+Devign~\cite{devign2019} & GNN only & None & None & Softmax & C/C++ & 63.7\% acc; no cascade \\
+IRIS~\cite{iris2025} & SAST+LLM & None & Single LLM & LLM override & Java & Uniform LLM; no GNN \\
+Vulnhalla~\cite{vulnhalla2025} & SAST+LLM & None & Single LLM & LLM filter & Multi & No selective routing \\
+ZeroFalse~\cite{zerofalse2025} & SAST+LLM & None & Single LLM & LLM judge & Multi & No graph analysis \\
+LLMxCPG~\cite{llmxcpg2025} & CPG+LLM & None & Single LLM & LLM+CPG & C/C++ & No conformal; 1 lang \\
+\midrule
+\textbf{Ours} & \textbf{4-stage} & \textbf{4-factor $U$} & \textbf{Dual-agent} & \textbf{CWE-adaptive} & \textbf{5} & \textbf{C/C++ training bias} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent The positioning matrix makes the contribution space clear:
-existing systems address subsets of the problem---SAST tools provide
-rule-based detection, GNNs provide structural analysis, LLM systems
-provide semantic reasoning---but no system integrates these modalities
-with principled uncertainty-driven routing. SEC-C occupies a unique
-point in this design space by combining all three analysis modalities
-with conformal coverage guarantees, adversarial LLM validation, and
-CWE-aware fusion into a single cascade architecture.
-
-% ============================================================================
 \section{\uppercase{Summary}}
 \label{sec:litsurvey-summary}
-% ============================================================================
 
-This chapter surveyed the five research areas that inform our framework
-design. GNN-based vulnerability detection
-(\S\ref{sec:gnn-lit}) has produced architectures capable of learning
-from graph-structured code representations, but reported performance is
-severely inflated by benchmark artifacts~\cite{primevul2024}, and no GNN
-system provides calibrated uncertainty. LLM-based code security
-(\S\ref{sec:llm-lit}) brings semantic reasoning power but suffers from
-inconsistency~\cite{steenhoek2024}, confirmation
-bias~\cite{multiagentdebate2023}, and hallucination, making standalone
-LLM classification unreliable. Conformal prediction
-(\S\ref{sec:conformal-lit}) offers distribution-free coverage guarantees
-that address the calibration gap, but it has not been applied to
-vulnerability detection. Hybrid systems (\S\ref{sec:hybrid-lit}) combine
-SAST with LLM reasoning to reduce false positives, but all existing
-approaches process findings uniformly without cost-aware escalation.
-
-We identified four research gaps: the absence of selective escalation
-(Gap~1), the absence of calibrated uncertainty (Gap~2), the absence of
-adversarial LLM validation (Gap~3), and the use of fixed fusion weights
-that ignore CWE-specific behavior (Gap~4). These gaps map directly to
-our four contributions: uncertainty-driven cascading escalation (C1),
-APS conformal prediction for code security (C2), adversarial dual-agent
-triage (C3), and CWE-adaptive score fusion (C4).
-
-The next chapter presents the methodology of our framework, detailing
-the architecture, algorithms, and design decisions that address each of
-these identified gaps.
-
+The four gaps identified in this chapter, selective escalation, calibrated uncertainty, adversarial validation, and CWE-adaptive fusion, remain unaddressed by any single existing system. The next chapter presents our methodology for closing each gap.

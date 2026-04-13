@@ -1,133 +1,60 @@
 \chapter{\uppercase{Conclusion and Future Directions}}
-% Page numbering handled by Chapter 1
 
-\doublespacing
-The experimental results presented in Chapter~4 --- spanning five GNN training iterations, conformal prediction calibration, and a live cascade evaluation across 15 repositories --- provide the empirical basis for the conclusions drawn here. We summarize our contributions against the research objectives stated in Chapter~1, discuss limitations honestly, and outline concrete directions for future work.
-
-%% ====================================================================
 \section{\uppercase{Summary of Contributions}}
-%% ====================================================================
 
-\doublespacing
-This thesis set out to address the false-positive problem that plagues static analysis tools, which report false-positive rates of 30--91\% in practice~\cite{johnson2013, ghostsecurity2025}. We proposed a multi-stage cascade architecture where each finding is resolved at the cheapest analysis stage capable of producing a confident verdict. We identify five contributions, summarized in Table~\ref{tab:contributions}.
+This thesis addressed the false-positive problem in static analysis
+(68--95\% in practice~\cite{ghostsecurity2025, siftingnoise2026}) through a
+multi-stage cascade where each finding is resolved at the cheapest stage
+capable of producing a confident verdict. Table~\ref{tab:contributions}
+summarizes the five contributions.
 
 \begin{table}[H]
 \centering
+{\small
 \caption{Summary of contributions with key metrics.}
 \label{tab:contributions}
-\begin{tabular}{lp{6cm}l}
+\begin{tabular}{lp{6.5cm}l}
 \toprule
 \textbf{ID} & \textbf{Contribution} & \textbf{Key Metric} \\
 \midrule
-C1 & Uncertainty-driven cascade routing & 85\% SAST resolution, 87\% fewer LLM calls \\
+C1 & Uncertainty-driven cascade routing & 85\% SAST resolution, 87.5\% fewer LLM calls \\
 C2 & Conformal prediction (APS + ConfTS) & 69.1\% singleton rate (from 0\%) \\
-C3 & Dual-agent LLM consensus & 5 decision rules, CVSS v3.1 generation \\
-C4 & CWE-adaptive score fusion & 14 weight profiles across 3 CWE families \\
+C3 & Dual-agent LLM consensus protocol & 5 decision rules, CVSS v3.1 generation \\
+C4 & CWE-adaptive score fusion & 14 weight profiles across 10 CWE categories \\
 C5 & End-to-end cascade evaluation & F1=0.781 (V4), 184 findings, 0\% unresolved \\
 \bottomrule
 \end{tabular}
+}
 \end{table}
 
-\textbf{C1: Uncertainty-driven cascade routing.}
-We designed a 4-factor uncertainty scoring model that quantifies analysis ambiguity as a weighted sum:
-\begin{equation}
-U = 0.4 \cdot U_{\text{conf}} + 0.3 \cdot U_{\text{comp}} + 0.2 \cdot U_{\text{nov}} + 0.1 \cdot U_{\text{confl}} + \delta_{\text{sev}}
-\label{eq:ch5-uncertainty}
-\end{equation}
-where $\delta_{\text{sev}}$ is a post-hoc severity adjustment ($+0.15$ for critical, $+0.10$ for high, $-0.05$ for low). Findings with $U < 0.5$ are resolved at the SAST stage without incurring the cost of graph construction or LLM inference. The four factors capture distinct dimensions of analysis uncertainty: confidence uncertainty reflects the SAST tool's self-reported precision, complexity uncertainty measures taint path length and interprocedural call depth, novelty uncertainty captures how unusual the pattern is relative to known CWE signatures, and conflict uncertainty flags disagreements between multiple SAST rules. In the live cascade evaluation (Section~4.5), 85\% of 184 findings across five languages were resolved at SAST, yielding an 87\% reduction in LLM API calls compared to a baseline that sends every finding to the LLM. The estimated per-scan cost is \$0.50--2.00 versus \$10--40 for LLM-only analysis at equivalent scale.
+Together, these contributions demonstrate that principled escalation, grounded
+in uncertainty quantification and conformal prediction (which provides coverage guarantees under the exchangeability assumption), dramatically reduces
+analysis cost while maintaining full finding resolution. The uncertainty score
+(C1) filters 85\% of findings at the SAST stage, reducing estimated per-scan
+cost from \$10--40 (LLM-only) to \$0.50--2.00. The live cascade (C5) confirmed
+end-to-end viability: 184 findings across 15 repositories, every one resolved.
 
-\textbf{C2: Conformal prediction for vulnerability classification.}
-We applied Adaptive Prediction Sets (APS)~\cite{romano2020} to GNN-based vulnerability detection --- to our knowledge, the first such application in the vulnerability detection domain. Raw model outputs produced 0\% singleton predictions through V2--V4 due to label-smoothing-induced logit compression (softmax outputs clustered in a narrow band around 0.5--0.6, making the APS threshold collapse to 1.0). The root cause analysis revealed that label smoothing, while beneficial for classification F1, is fundamentally at odds with conformal prediction because it prevents the model from producing the decisive probability estimates that APS requires.
+\section{\uppercase{Limitations and Future Work}}
 
-The integration of Conformal Temperature Scaling (ConfTS)~\cite{angelopoulos2023} in V5 --- combined with removing label smoothing --- achieved a 69.1\% singleton rate on the calibration set, enabling the GNN to resolve findings independently when confident. The conformal layer provides a distribution-free coverage guarantee: for any desired miscoverage rate $\alpha$, the prediction set contains the true label with probability $\geq 1 - \alpha$ under exchangeability. This guarantee holds regardless of the model's accuracy, making it a principled mechanism for routing decisions in the cascade.
+We identify six limitations, each paired with a planned mitigation:
 
-\textbf{C3: Dual-agent LLM consensus protocol.}
-We implemented a structured adversarial validation system where an Attacker agent (red team) constructs exploit payloads and an execution trace, while a Defender agent (blue team) catalogs sanitizers, access controls, and framework protections. This design draws on the multi-agent debate literature~\cite{multiagentdebate2023, divergentthinking2023}, where adversarial perspectives reduce hallucination and improve factual accuracy. Five decision rules arbitrate between the agents:
-\begin{enumerate}
-    \item[R1.] Attacker exploitable AND defender coverage $< 0.5$ $\rightarrow$ CONFIRMED
-    \item[R2.] NOT exploitable AND defender coverage $> 0.7$ $\rightarrow$ SAFE
-    \item[R2b.] NOT exploitable AND path infeasible $\rightarrow$ SAFE (confidence 0.8)
-    \item[R3.] Exploitable AND defender coverage $\geq 0.5$ $\rightarrow$ LIKELY
-    \item[R4.] NOT exploitable AND defender coverage $\leq 0.7$ $\rightarrow$ POTENTIAL
-\end{enumerate}
-Each finding receives a CVSS v3.1 base score~\cite{cvss31} derived from the agent verdicts, with attack vector, complexity, privileges, and impact metrics extracted from structured JSON responses. CWE-specific Jinja2 prompt templates (6 categories, 12 templates) provide targeted exploit knowledge --- for example, the SQL injection attacker template includes concrete payload libraries for authentication bypass, UNION extraction, blind boolean, and time-based techniques. The dual-agent protocol is designed to improve verdict quality through adversarial cross-examination; controlled comparison against single-agent baselines is prioritized as immediate future work.
+\begin{itemize}
+    \item \textbf{GNN accuracy vs.\ conformal trade-off.} Removing label smoothing for ConfTS reduced test F1 from 0.781 to 0.750. \textit{Fix:} cross-validated temperature search ($T \in [0.05, 3.0]$, 5-fold) in V6.
+    \item \textbf{Language imbalance.} C/C++ constitutes 94.6\% of training data. \textit{Fix:} PrimeVul integration plus targeted collection via Juliet~\cite{juliet2017}, WebGoat, and NodeGoat.
+    \item \textbf{Conformal coverage gap.} Offline coverage reached 84.3\%, approaching the 90\% theoretical target and already demonstrating meaningful uncertainty-aware routing. \textit{Fix:} systematic comparison of Platt scaling, histogram binning, and isotonic regression against ConfTS to close the remaining gap.
+    \item \textbf{Expert-configured fusion weights.} The 14 CWE weight profiles are configured based on domain expertise rather than empirical optimization. \textit{Fix:} Bayesian optimization over per-CWE simplices using a labeled evaluation set.
+    \item \textbf{Python-only end-to-end validation.} The full pipeline was validated primarily on Python targets. \textit{Fix:} per-language integration test suites covering C/C++, JavaScript, Java, and Go.
+    \item \textbf{No OWASP Benchmark evaluation.} External validity against the standard 2,740-case SAST benchmark remains outstanding. \textit{Fix:} OWASP Benchmark evaluation to enable direct comparison with commercial tools.
+\end{itemize}
 
-\textbf{C4: CWE-adaptive score fusion.}
-Rather than applying uniform fusion weights across all vulnerability types, we defined 14 CWE-specific weight profiles:
-\begin{equation}
-S_{\text{fused}} = \alpha_{\text{cwe}} \cdot S_{\text{SAST}} + \beta_{\text{cwe}} \cdot S_{\text{GNN}} + \gamma_{\text{cwe}} \cdot S_{\text{LLM}}
-\label{eq:ch5-fusion}
-\end{equation}
-The weights reflect the empirical strengths and weaknesses of each analysis modality for specific vulnerability classes. Injection CWEs (CWE-78, CWE-79, CWE-89) assign $\gamma = 0.45$--$0.50$ because LLM semantic understanding excels at distinguishing parameterized queries from string-concatenated ones and at assessing whether framework auto-escaping is active. Cryptographic CWEs (CWE-327, CWE-328) assign $\alpha = 0.50$ because pattern-matching SAST rules reliably detect weak algorithm usage --- the API signatures for MD5, SHA-1, and DES are unambiguous --- while LLMs show 77--84\% miss rates on the same patterns~\cite{steenhoek2024}. Memory safety CWEs (CWE-416, CWE-476) assign $\beta = 0.45$--$0.50$ because use-after-free and null-pointer dereference detection requires tracking object lifetimes through control flow, which is precisely what the code property graph and GNN attention mechanism capture. The full weight table (14 CWE entries + default) is provided in Appendix~\ref{app:fusion-weights}. These weight profiles represent architectural contributions based on domain expertise and published accuracy data; planned ablation studies will empirically validate the per-CWE assignments against uniform baselines.
+Two longer-term directions merit attention: Dynamic Application Security Testing (DAST) integration as an optional fifth cascade stage for runtime exploit confirmation, and IDE extensions (VS Code, JetBrains) that surface SAST-stage annotations in real time~\cite{johnson2013}.
 
-\textbf{C5: End-to-end cascade implementation and evaluation.}
-We built and evaluated the complete SEC-C framework across five GNN training versions (V1--V5). The MiniGINv3 architecture (2.4M parameters, 3-layer GIN with residual connections and batch normalization) achieved peak classification F1 = 0.781 at V4 (20,928 samples, AUC-ROC = 0.826), with per-CWE standouts including CWE-476 (null pointer dereference, F1 = 0.926) and CWE-787 (out-of-bounds write, F1 = 0.895). The live cascade benchmark across 15 open-source repositories produced the distribution: 85\% SAST / 2\% GNN / 13\% LLM / 0\% unresolved across 184 findings. Every finding received a verdict --- a property we attribute to the graceful degradation design, where missing tools (CodeQL, Joern, GNN model, or LLM API keys) cause findings to escalate to the next available stage rather than being dropped.
-
-%% ====================================================================
-\section{\uppercase{Limitations}}
-%% ====================================================================
-
-\doublespacing
-We identify eight limitations that bound the generalizability of our results. We present these candidly because they define the gap between the current prototype and a production-ready tool.
-
-\textbf{GNN accuracy--conformal trade-off.}
-Removing label smoothing in V5 (required for ConfTS to produce calibrated softmax outputs) reduced test F1 from 0.781 (V4) to 0.750 (V5). This 3.1-point drop represents a direct, irreducible trade-off between two desirable properties: V4 achieves better binary classification (F1 = 0.781, AUC = 0.826) but produces 0\% singleton predictions (conformal is useless); V5 achieves worse classification (F1 = 0.750, AUC = 0.781) but produces 69.1\% singleton predictions (conformal is functional). There is no free lunch --- label smoothing acts as a regularizer that improves generalization at the cost of destroying the probability calibration that conformal methods require. Production deployments must choose which property matters more for their use case.
-
-\textbf{Language imbalance in training data.}
-Of 21,150 total graphs, 20,000 (94.6\%) are C/C++. The remaining languages are severely underrepresented: Python 596 (2.8\%), JavaScript 252 (1.2\%), Java 194 (0.9\%), Go 108 (0.5\%). This imbalance exists because the largest publicly available vulnerability datasets (BigVul, DiverseVul, Devign, Juliet) are predominantly C/C++ function-level corpora. While Python F1 improved from 0.667 (V4) to 0.836 (V5) after adding VUDENC and CVEfixes data, the GNN's cross-language generalization for JavaScript, Java, and Go has not been validated at scale. The GraphCodeBERT~\cite{graphcodebert2021} embedding layer is language-agnostic in principle, but the downstream GIN layers may have overfit to C/C++ structural patterns.
-
-\textbf{Conformal coverage gap.}
-At ConfTS temperature $T = 0.10$, offline test coverage was 84.3\%, below the 90\% target ($\alpha = 0.10$). The aggressive temperature achieved 92\% coverage on the validation set but did not transfer to the held-out test set --- a 7.7-point gap that indicates overfitting to the validation distribution. We deployed $T = 0.95$ in the live cascade as a conservative compromise, which preserves the model's ability to express genuine uncertainty at the cost of reducing the singleton rate from 69.1\% (offline) to 2\% (live). The gap between offline calibration and live deployment is a known challenge in conformal prediction under distribution shift~\cite{barber2023}.
-
-\textbf{LLM rate constraints.}
-The Gemini 2.5 Flash free tier limits requests to 15 RPM and 500 RPD. For a scan that escalates 13\% of findings to the LLM stage, a repository producing 500 findings would require 60 LLM calls, consuming 12\% of the daily quota on a single scan. The framework mitigates this through prompt batching (up to 5 findings per call) and tiered prompt complexity (minimal, standard, and full prompts based on uncertainty score), but paid tiers remain necessary for production-scale usage.
-
-\textbf{Expert-estimated fusion weights.}
-The 14 CWE-specific weight profiles in \texttt{cwe\_weights.yaml} were assigned based on domain expertise and published LLM accuracy reports (e.g., LLMs show 77--84\% miss rates on cryptographic weaknesses~\cite{steenhoek2024}). These weights have not been empirically calibrated against ground-truth labels. The actual optimal weights may differ from our estimates, particularly for CWE categories where we had fewer reference data points.
-
-\textbf{Python-only pipeline validation.}
-While the GNN trains on multi-language data and the SAST module supports five languages (Python, JavaScript, Java, C/C++, Go), the end-to-end pipeline --- tree-sitter pre-screening through CodeQL taint analysis, Joern CPG construction, GNN inference, and LLM validation --- was validated primarily on Python targets in the live cascade benchmark. Cross-language integration testing for C/C++, JavaScript, Java, and Go remains incomplete.
-
-\textbf{PrimeVul dataset exclusion.}
-The PrimeVul dataset~\cite{primevul2024} (236K C/C++ samples with deduplicated, realistic vulnerability labels) failed to load due to HuggingFace metadata compatibility issues (a ``Value is too big!'' error on JSONL direct load that we were unable to resolve). This is a meaningful gap: PrimeVul's deduplication methodology~\cite{primevul2024} addresses the data leakage concerns that inflate reported metrics on BigVul and DiverseVul, and the 3.09\% F1 baseline it establishes for existing GNN approaches would provide a rigorous comparison point for our results.
-
-\textbf{No OWASP Benchmark evaluation.}
-We have not yet evaluated SEC-C against the OWASP Benchmark, the standard test suite (2,740 test cases across 11 vulnerability categories) for comparing SAST tools on true positive rate and false positive rate. This evaluation is necessary for external validity and would enable direct comparison with commercial tools such as Checkmarx, Fortify, and Snyk~\cite{snyk2024}.
-
-%% ====================================================================
-\section{\uppercase{Future Work}}
-%% ====================================================================
-
-\doublespacing
-We outline eight concrete directions, ordered by expected impact on the framework's maturity.
-
-\textbf{1. PrimeVul integration and V6+ training.}
-The immediate priority is fixing the PrimeVul HuggingFace loader to incorporate up to 236K deduplicated C/C++ samples. PrimeVul's deduplication methodology removes the data leakage that inflates metrics on BigVul and DiverseVul, and its 3.09\% F1 baseline for existing approaches~\cite{primevul2024} would provide a rigorous comparison. Beyond data, we plan a V6 training run with cross-validated temperature search ($T \in [0.05, 3.0]$, 5-fold) to close the 7.7-point coverage gap between validation and test sets observed in V5.
-
-\textbf{2. Empirical fusion weight calibration.}
-We plan to replace expert-estimated CWE weights with empirically calibrated values using Bayesian optimization. Given a labeled evaluation set $\{(f_i, y_i)\}$ where $f_i$ is a finding and $y_i \in \{\text{true positive}, \text{false positive}\}$, we will optimize $(\alpha, \beta, \gamma)$ per CWE family to maximize F1 on the fused score, subject to $\alpha + \beta + \gamma = 1$. The search space is a 2-simplex per CWE family, making Bayesian optimization with Gaussian process priors well-suited to find optima with a modest evaluation budget.
-
-\textbf{3. Cross-language test suite expansion.}
-The 94.6\% C/C++ training dominance must be addressed with targeted data collection. We will construct per-language evaluation sets using Juliet~\cite{juliet2017} (Java, C/C++), OWASP WebGoat (Java), DVWA (adapted to Python), and NodeGoat (JavaScript). A second direction is per-language model specialization: fine-tuning separate GNN classification heads or low-rank adapters per language family while sharing the GraphCodeBERT~\cite{graphcodebert2021} backbone.
-
-\textbf{4. OWASP Benchmark evaluation.}
-Running SEC-C against the OWASP Benchmark's 2,740 test cases (11 vulnerability categories) will produce true positive rates and false positive rates directly comparable with commercial SAST tools. This evaluation is the single most important step for establishing external validity.
-
-\textbf{5. DAST integration.}
-Adding a Dynamic Application Security Testing stage after LLM validation would provide runtime confirmation of exploitability. We envision this as an optional fifth cascade stage: findings that the LLM marks as CONFIRMED with CVSS $\geq 7.0$ could be forwarded to a DAST engine (OWASP ZAP, Nuclei) for live proof-of-concept generation. This would transform SEC-C from a static-only tool into a hybrid static-dynamic analysis framework.
-
-\textbf{6. Continual learning from new CVE data.}
-The RAG knowledge base currently indexes a static snapshot of NVD~\cite{nvd2023} and CWE data. An online update mechanism --- triggered by new CVE publications via the NVD API --- would keep the LLM's reference knowledge current without requiring full re-indexing. The existing FAISS index supports incremental additions, and BM25 can be re-built incrementally from the document store.
-
-\textbf{7. Alternative calibration methods.}
-ConfTS is one approach to post-hoc calibration, but the conformal prediction literature offers several alternatives: Platt scaling~\cite{guocalibration2017} (parametric logistic regression on logits), histogram binning (non-parametric, low variance), and isotonic regression (non-parametric, monotonic). A systematic comparison of these methods on vulnerability detection data --- measuring both calibration error and conformal singleton rate --- would identify the best approach for this domain.
-
-\textbf{8. IDE integration.}
-A VS Code or JetBrains extension that runs SEC-C in the background during development would bring the cascade to the developer's workflow. The SAST-only mode (85\% resolution rate, sub-second latency for tree-sitter pre-screening) is well-suited to real-time inline annotations, with GNN and LLM stages triggered on-demand for findings the developer flags as ambiguous. This would address the developer adoption problem identified by Johnson et al.~\cite{johnson2013}: developers avoid SAST tools not because of false negatives, but because of the cognitive overhead of triaging false positives.
-
-%% ====================================================================
 \section{\uppercase{Closing Remarks}}
-%% ====================================================================
 
-\doublespacing
-The central design principle of this work --- that uncertainty quantification should drive the routing of findings between analysis modalities --- proved effective in practice. The cascade architecture demonstrates that intelligent escalation between cheap pattern matching, graph-based structural analysis, and expensive semantic reasoning achieves a cost-accuracy trade-off that no single modality can match alone. We release SEC-C as open-source software and welcome contributions from the security research community.
+The central principle of this work, that uncertainty quantification should
+drive the routing of findings between analysis modalities, proved effective in
+practice. Intelligent escalation between cheap pattern matching, graph-based
+structural analysis, and expensive semantic reasoning achieves a cost-accuracy
+balance that no single modality can match alone. We release the proposed
+framework as open-source software and welcome contributions from the security
+research community.

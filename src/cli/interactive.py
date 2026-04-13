@@ -53,7 +53,7 @@ class SecCCompleter(Completer):
     def __init__(self):
         self.commands = {
             "/scan": "Full cascade scan (SAST -> Graph -> LLM)",
-            "/quick": "SAST-only fast scan (<1s)",
+            "/quick": "SAST-only fast scan",
             "/deep": "Full cascade + verbose details",
             "/report": "View saved SARIF report (opens dashboard)",
             "/status": "Framework status + tool availability",
